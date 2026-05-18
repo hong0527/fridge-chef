@@ -28,7 +28,8 @@ jobs:
         run: ruff check .
       - name: Test (pytest)
         env:
-          JWT_SECRET: ci-test-secret
+          # 32자+ (security.py 부팅 가드 충족). 운영 사용 금지 — CI 전용 상수.
+          JWT_SECRET: ci-test-secret-do-not-use-in-prod-padding-1234567890abcdef
           GEMINI_API_KEY: ""
         run: pytest -q
 
