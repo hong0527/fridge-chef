@@ -149,6 +149,8 @@ activemq-data/
 
 # Environments
 .env
+.env.local
+.env.production
 .envrc
 .venv
 env/
@@ -156,6 +158,27 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+.npm
+*.tsbuildinfo
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Tooling caches
+.eslintcache
+
+# OMC (oh-my-claudecode) 세션 상태 — 로컬 전용
+.omc/
+.claude/local/
 
 # Spyder project settings
 .spyderproject

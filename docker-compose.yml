@@ -1,0 +1,77 @@
+# FridgeChef 로컬 개발 스택 (NFR-OPS-001 컨테이너 배포)
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: fridgechef-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fridgechef
+      POSTGRES_PASSWORD: fridgechef
+      POSTGRES_DB: fridgechef
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fridgechef -d fridgechef"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: fridgechef-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fridgechef-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://fridgechef:fridgechef@postgres:5432/fridgechef
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 필수 - .env 에 32자 이상 무작위 문자열 설정. openssl rand -hex 32}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRE_MIN: ${JWT_EXPIRE_MIN:-1440}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_TIMEOUT_S: ${GEMINI_TIMEOUT_S:-8.0}
+      RECOMMEND_TIMEOUT_S: ${RECOMMEND_TIMEOUT_S:-10.0}
+      TOP_K_MODEL_A: ${TOP_K_MODEL_A:-10}
+      TOP_K_MODEL_B_PRE: ${TOP_K_MODEL_B_PRE:-10}
+      TOP_K_MODEL_B_FINAL: ${TOP_K_MODEL_B_FINAL:-3}
+      MISSING_INGREDIENTS_MAX: ${MISSING_INGREDIENTS_MAX:-5}
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fridgechef-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
