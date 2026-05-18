@@ -43,7 +43,9 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP", "B"]
-ignore = ["E501"]
+# B008 — FastAPI Depends(...) in argument defaults 는 공식 표준 패턴.
+# E501 — line-length 는 위 [tool.ruff] line-length=100 으로 관리.
+ignore = ["E501", "B008"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

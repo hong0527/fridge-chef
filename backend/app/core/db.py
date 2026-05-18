@@ -13,7 +13,6 @@ from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
-
 # 환경변수에서 직접 로드 (config.py 의 dataclass Settings 와 분리 유지)
 DATABASE_URL: str = os.getenv(
     "DATABASE_URL",

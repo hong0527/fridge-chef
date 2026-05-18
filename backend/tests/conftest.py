@@ -21,7 +21,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
@@ -63,7 +63,7 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 @pytest_asyncio.fixture(scope="function")
 async def db_engine():  # type: ignore[no-untyped-def]
     """함수 스코프 SQLite-인메모리 엔진 + 테이블 생성/해제."""
-    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.ext.asyncio import create_async_engine
 
     from app.core.db import Base
     from app.models import orm as _orm  # noqa: F401 — 모델 import 유도
@@ -87,7 +87,7 @@ async def db_engine():  # type: ignore[no-untyped-def]
 @pytest_asyncio.fixture
 async def db_session(db_engine):  # type: ignore[no-untyped-def]
     """단일 트랜잭션 세션 — 함수 종료 후 rollback (격리)."""
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+    from sqlalchemy.ext.asyncio import async_sessionmaker
 
     SessionLocal = async_sessionmaker(bind=db_engine, expire_on_commit=False)
     async with SessionLocal() as session:

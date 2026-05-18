@@ -5,10 +5,11 @@ from __future__ import annotations
 import os
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from alembic import context
 from app.core.db import Base
+
 # 모델 import 로 메타데이터 등록
 from app.models import orm  # noqa: F401
 

@@ -54,7 +54,7 @@ async def recommend_dual(
             asyncio.gather(_run_a(), _run_b()),
             timeout=settings.recommend_timeout_s,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         _logger.error("recommend_dual 타임아웃 (%.1fs)", settings.recommend_timeout_s)
         return {"model_a": [], "model_b": []}
     except Exception as exc:  # pragma: no cover

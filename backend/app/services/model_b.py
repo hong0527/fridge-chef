@@ -20,7 +20,7 @@ from app.core.synonym_map import normalize_list
 from app.models.recipe import Recipe
 from app.models.recipe_repository import RecipeRepository, get_repository
 from app.services.gemini_client import gemini_select_top3
-from app.services.model_a import _vec_from_prefs, _vec_from_recipe, _cosine
+from app.services.model_a import _cosine, _vec_from_prefs, _vec_from_recipe
 
 
 def _analyze_ingredients(fridge: set[str], recipe_ings: list[str]) -> tuple[list[str], list[str]]:

@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
@@ -153,7 +153,7 @@ class TestLogin:
         import os
 
         secret = os.environ["JWT_SECRET"]
-        past = datetime.now(tz=timezone.utc) - timedelta(hours=1)
+        past = datetime.now(tz=UTC) - timedelta(hours=1)
         expired_token = jwt.encode(
             {"sub": "1", "exp": int(past.timestamp())}, secret, algorithm="HS256"
         )
