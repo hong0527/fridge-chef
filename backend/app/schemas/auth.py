@@ -9,7 +9,7 @@ class SignupRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     nickname: str = Field(min_length=1, max_length=64)
-    allergies: list[str] = Field(default_factory=list)
+    allergies: list[str] = Field(default_factory=list, max_length=50)
 
 
 class LoginRequest(BaseModel):

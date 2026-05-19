@@ -22,6 +22,22 @@ export const setToken = (token: string | null) => {
   else window.localStorage.removeItem(TOKEN_KEY);
 };
 
+/** SSR-safe 사용자 알레르기 캐시 접근 (recipe 상세에서 위반 경고용) */
+export const getAllergies = (): string[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(ALLERGIES_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const setAllergies = (allergies: string[]) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(ALLERGIES_KEY, JSON.stringify(allergies));
+};
+
 export const api: AxiosInstance = axios.create({
   baseURL,
   timeout: 30_000,

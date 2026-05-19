@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Refrigerator, ChefHat, Sparkles } from 'lucide-react';
@@ -24,13 +24,24 @@ export default function RecommendPage() {
   const [phase, setPhase] = useState<Phase>('wizard');
   const [result, setResult] = useState<RecommendResponse | null>(null);
   const [progress, setProgress] = useState(0);
+  // Browser setInterval 반환은 number — @types/node 의 NodeJS.Timeout 와 혼동 방지
+  const progressIntervalRef = useRef<number | null>(null);
+
+  // 컴포넌트 언마운트 시 in-flight interval cleanup (memory leak 방지)
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current !== null) {
+        window.clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   const handleSubmit = async (prefs: Preferences) => {
     setPhase('loading');
     setProgress(0);
-    // Progressive indicator for model B (≈10s)
     const start = Date.now();
-    const interval = window.setInterval(() => {
+    progressIntervalRef.current = window.setInterval(() => {
       const elapsed = (Date.now() - start) / 1000;
       setProgress(Math.min(95, Math.round((elapsed / 10) * 100)));
     }, 200);
@@ -45,7 +56,10 @@ export default function RecommendPage() {
       toast.show(apiErrorMessage(err), 'error');
       setPhase('error');
     } finally {
-      window.clearInterval(interval);
+      if (progressIntervalRef.current !== null) {
+        window.clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       setProgress(100);
     }
   };

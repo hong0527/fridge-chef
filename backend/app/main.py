@@ -31,29 +31,39 @@ _DOCS_ENABLED = _ENV != "production"
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """SEED_RECIPES → DB idempotent 적재. 추천(인메모리)·상세(DB) 일관성 보장."""
+    """SEED_RECIPES → DB idempotent 적재. 추천(인메모리)·상세(DB) 일관성 보장.
+
+    Cross-dialect idempotent 패턴: 기존 recipe_id 사전 조회 → 누락분만 INSERT.
+    단일 워커 가정. 다중 워커 운영 시 advisory lock 또는 postgres ON CONFLICT 권장.
+    """
     try:
         async with AsyncSessionLocal() as db:
-            existing = await db.scalar(select(RecipeRow.recipe_id).limit(1))
-            if existing is None:
-                for r in SEED_RECIPES:
-                    db.add(
-                        RecipeRow(
-                            recipe_id=r.recipe_id,
-                            name=r.name,
-                            whole_ingredients=r.whole_ingredients,
-                            steps=[],
-                            cook_min=r.cook_min,
-                            spicy=r.spicy,
-                            difficulty_level=r.difficulty_level,
-                            is_low_calorie=r.is_low_calorie,
-                            country=r.country,
-                            theme=r.theme,
-                            allergens=r.allergens,
-                        )
-                    )
+            existing_ids = set(
+                (await db.scalars(select(RecipeRow.recipe_id))).all()
+            )
+            new_rows = [
+                RecipeRow(
+                    recipe_id=r.recipe_id,
+                    name=r.name,
+                    whole_ingredients=r.whole_ingredients,
+                    steps=[],
+                    cook_min=r.cook_min,
+                    spicy=r.spicy,
+                    difficulty_level=r.difficulty_level,
+                    is_low_calorie=r.is_low_calorie,
+                    country=r.country,
+                    theme=r.theme,
+                    allergens=r.allergens,
+                )
+                for r in SEED_RECIPES
+                if r.recipe_id not in existing_ids
+            ]
+            if new_rows:
+                db.add_all(new_rows)
                 await db.commit()
-                _logger.info("startup seed: %d recipes inserted", len(SEED_RECIPES))
+                _logger.info("startup seed: %d/%d new recipes inserted", len(new_rows), len(SEED_RECIPES))
+            else:
+                _logger.info("startup seed: all %d recipes already present", len(SEED_RECIPES))
     except Exception as exc:  # noqa: BLE001 — startup 실패 시 부팅은 진행
         _logger.warning("startup seed failed (skipping): %s", exc)
     yield
@@ -77,7 +87,8 @@ _CORS_ORIGINS = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS,
-    allow_credentials=True,
+    # Bearer 토큰만 사용 (쿠키 인증 X) → credentials 불필요. 향후 쿠키 도입 시 True.
+    allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
     max_age=600,

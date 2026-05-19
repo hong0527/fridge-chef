@@ -18,7 +18,7 @@ import { BrandLockup } from '@/components/Brand';
 import { Button } from '@/components/Button';
 import { FridgeChip } from '@/components/FridgeChip';
 import { useToast } from '@/components/Toast';
-import { apiErrorMessage, getRecipe, type Recipe } from '@/lib/api';
+import { apiErrorMessage, getAllergies, getRecipe, type Recipe } from '@/lib/api';
 
 const FAVORITE_ENABLED = false; // Could 우선순위 — SRS v1.10
 
@@ -45,17 +45,8 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         if (alive) setLoading(false);
       }
     })();
-    // user allergies preference (would come from /user/me; reading local cache)
-    if (typeof window !== 'undefined') {
-      const raw = window.localStorage.getItem('fc_user_allergies');
-      if (raw) {
-        try {
-          setUserAllergies(JSON.parse(raw));
-        } catch {
-          // ignore malformed cache
-        }
-      }
-    }
+    // SSR-safe helper (lib/api.ts) — typeof window guard 일관성 유지
+    setUserAllergies(getAllergies());
     return () => {
       alive = false;
     };
