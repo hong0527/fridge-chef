@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Plus, Trash2, Search, Refrigerator, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Plus, Trash2, Search, Refrigerator, AlertTriangle, ArrowRight, User, Settings, LogOut } from 'lucide-react';
 import { BrandLockup } from '@/components/Brand';
 import { Button } from '@/components/Button';
 import { FridgeChip } from '@/components/FridgeChip';
@@ -16,6 +16,7 @@ import {
   getFridge,
   removeIngredient,
   searchIngredients,
+  logout,
   type Ingredient,
 } from '@/lib/api';
 import { localSuggest } from '@/lib/synonyms';
@@ -161,6 +162,12 @@ export default function FridgePage() {
     router.push('/recommend');
   };
 
+  const handleLogout = async () => {
+    await logout();
+    toast.show('로그아웃 되었습니다.', 'success');
+    router.push('/');
+  };
+
   return (
     <main className="min-h-screen bg-cream-100 dark:bg-clay-900">
       <header className="max-w-7xl mx-auto px-6 lg:px-12 py-6 flex items-center justify-between">
@@ -173,7 +180,47 @@ export default function FridgePage() {
         </Link>
       </header>
 
-      <section className="max-w-3xl mx-auto px-6 lg:px-8 pt-4 pb-16">
+      <div className="max-w-7xl mx-auto px-6 lg:px-12 flex flex-col md:flex-row gap-10 lg:gap-16 mt-8">
+        {/* Sidebar - Explicitly visible */}
+        <div className="w-full md:w-80 space-y-6">
+          <div className="p-6 bg-cream-50 dark:bg-clay-800 rounded-[32px] border border-clay-900/10 dark:border-cream-100/10 shadow-soft">
+            <h3 className="font-display text-xl font-bold mb-6 px-1">설정</h3>
+            <div className="space-y-3">
+              <Button variant="secondary" size="lg" className="w-full justify-start gap-4 px-6 h-14 text-lg">
+                <User className="h-6 w-6 text-gochu-500" /> 프로필 설정
+              </Button>
+              <Button variant="secondary" size="lg" className="w-full justify-start gap-4 px-6 h-14 text-lg">
+                <Settings className="h-6 w-6 text-herb-500" /> 알레르기 설정
+              </Button>
+              <Button
+                variant="ghost"
+                size="lg"
+                onClick={handleLogout}
+                className="w-full justify-start gap-4 px-6 h-14 text-lg text-clay-500 hover:text-gochu-500 hover:bg-gochu-500/5 transition-all"
+              >
+                <LogOut className="h-6 w-6" /> 로그아웃
+              </Button>
+            </div>
+            
+            <div className="mt-8 pt-6 border-t border-clay-900/5 dark:border-cream-100/5">
+              <p className="px-1 text-xs font-bold tracking-widest uppercase text-clay-400 dark:text-clay-500 mb-4">
+                통계
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-4 rounded-2xl bg-cream-100 dark:bg-clay-900/50">
+                  <span className="block text-2xl font-bold tabular-nums text-gochu-500">{ingredients.length}</span>
+                  <span className="text-[10px] font-bold text-clay-500">재료 수</span>
+                </div>
+                <div className="p-4 rounded-2xl bg-cream-100 dark:bg-clay-900/50">
+                  <span className="block text-2xl font-bold tabular-nums text-herb-500">12</span>
+                  <span className="text-[10px] font-bold text-clay-500">받은 추천</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section className="flex-1 max-w-3xl pb-16">
         <div className="flex items-end justify-between mb-6">
           <div>
             <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight flex items-center gap-3">
@@ -316,6 +363,7 @@ export default function FridgePage() {
           </Button>
         </div>
       </section>
+      </div>
 
       <Modal
         open={clearOpen}
