@@ -8,7 +8,7 @@ import { BrandLockup } from '@/components/Brand';
 import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
-import { apiErrorMessage, login, signup } from '@/lib/api';
+import { apiErrorMessage, login, setAllergies, signup } from '@/lib/api';
 import { cn } from '@/lib/cn';
 
 type Mode = 'login' | 'signup';
@@ -50,7 +50,8 @@ function AuthInner() {
     try {
       if (mode === 'signup') {
         // 백엔드 signup 응답은 UserPublic (토큰 없음). 회원가입 후 자동 로그인.
-        await signup(email, password, nickname);
+        const user = await signup(email, password, nickname);
+        setAllergies(user.allergies);
         await login(email, password);
         setVerifyOpen(true);
       } else {

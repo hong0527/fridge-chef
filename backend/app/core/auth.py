@@ -40,7 +40,12 @@ async def get_current_user(
             token,
             JWT_SECRET,
             algorithms=[JWT_ALGORITHM],
-            options={"require": ["exp", "sub", "iat"]},
+            options={
+                "require": ["exp", "sub", "iat"],
+                "verify_exp": True,
+                "verify_iat": True,
+                "verify_signature": True,
+            },
         )
         user_id = int(payload["sub"])
     except (jwt.PyJWTError, KeyError, ValueError) as exc:

@@ -15,7 +15,8 @@ class Preferences(BaseModel):
     food_type: str = Field(default="메인요리", description="메인요리|반찬|국물|디저트|음료")
     country: str = Field(default="한식", description="한식|중식|일식|양식|기타")
     max_cook_min: int = Field(default=60, ge=1, le=600, description="최대 조리시간")
-    user_context: str = Field(default="", description="자연어 문맥(예: '와인과 같이')")
+    # Prompt injection 방어 — 길이 제한. Gemini 클라이언트에서 escape 처리.
+    user_context: str = Field(default="", max_length=200, description="자연어 문맥(예: '와인과 같이')")
 
 
 class RecommendRequest(BaseModel):
