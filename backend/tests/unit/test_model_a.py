@@ -14,8 +14,8 @@ import math
 import pytest
 
 from app.services.model_a import (
-    _cosine,
     _contains_all,
+    _cosine,
     _vec_from_prefs,
     _vec_from_recipe,
     recommend_cold_storage,

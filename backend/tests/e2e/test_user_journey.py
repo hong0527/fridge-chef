@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 
 class TestPersonaP1_Kim:
     """P1 김민준 — 자취·빠른 한끼·초보."""

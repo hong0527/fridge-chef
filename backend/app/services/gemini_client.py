@@ -112,7 +112,7 @@ async def gemini_select_top3(
     prompt = _build_prompt(candidates, user_context)
     try:
         text = await asyncio.wait_for(_call_gemini_sdk(prompt), timeout=settings.gemini_timeout_s)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         _logger.warning("Gemini 타임아웃 (%.1fs) → 폴백", settings.gemini_timeout_s)
         return None
     if not text:

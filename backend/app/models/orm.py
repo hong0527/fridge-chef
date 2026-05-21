@@ -32,10 +32,10 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    fridge_items: Mapped[list["FridgeIngredient"]] = relationship(
+    fridge_items: Mapped[list[FridgeIngredient]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    ratings: Mapped[list["Rating"]] = relationship(
+    ratings: Mapped[list[Rating]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -57,7 +57,7 @@ class FridgeIngredient(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    user: Mapped["User"] = relationship(back_populates="fridge_items")
+    user: Mapped[User] = relationship(back_populates="fridge_items")
 
 
 class RecipeRow(Base):
@@ -99,4 +99,4 @@ class Rating(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    user: Mapped["User"] = relationship(back_populates="ratings")
+    user: Mapped[User] = relationship(back_populates="ratings")
