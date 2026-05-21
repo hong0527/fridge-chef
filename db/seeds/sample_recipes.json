@@ -1,0 +1,41 @@
+[
+  {
+    "recipe_id": "r001",
+    "name": "계란말이",
+    "whole_ingredients": ["계란", "대파", "소금"],
+    "steps": ["계란을 푼다", "대파를 잘게 썬다", "팬에 부어 돌돌 만다"],
+    "cook_min": 10,
+    "spicy": 1,
+    "difficulty_level": 1,
+    "is_low_calorie": false,
+    "country": "kr",
+    "theme": "side",
+    "allergens": ["계란"]
+  },
+  {
+    "recipe_id": "r004",
+    "name": "된장찌개",
+    "whole_ingredients": ["된장", "두부", "감자", "양파", "대파"],
+    "steps": ["물을 끓이고 된장을 푼다", "감자·양파를 넣고 끓인다", "두부와 대파를 넣고 마무리"],
+    "cook_min": 25,
+    "spicy": 2,
+    "difficulty_level": 1,
+    "is_low_calorie": false,
+    "country": "kr",
+    "theme": "soup",
+    "allergens": ["대두"]
+  },
+  {
+    "recipe_id": "r019",
+    "name": "토마토파스타",
+    "whole_ingredients": ["면", "토마토", "마늘", "올리브유"],
+    "steps": ["면을 삶는다", "마늘을 볶고 토마토를 으깨 넣는다", "면을 버무리고 마무리"],
+    "cook_min": 25,
+    "spicy": 1,
+    "difficulty_level": 2,
+    "is_low_calorie": false,
+    "country": "west",
+    "theme": "main",
+    "allergens": ["밀"]
+  }
+]

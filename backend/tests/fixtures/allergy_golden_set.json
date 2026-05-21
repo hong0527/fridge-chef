@@ -1,0 +1,82 @@
+[
+  {
+    "id": "golden_001",
+    "fridge": ["밥", "계란", "간장"],
+    "preferences": {"spicy": 1},
+    "allergies": ["계란"],
+    "expect_zero": true,
+    "note": "계란 알레르기 - 계란말이/김밥 등 제외"
+  },
+  {
+    "id": "golden_002",
+    "fridge": ["두부", "간장", "마늘"],
+    "preferences": {"spicy": 2},
+    "allergies": ["대두"],
+    "expect_zero": true,
+    "note": "대두 알레르기 - 두부조림 제외"
+  },
+  {
+    "id": "golden_003",
+    "fridge": ["면", "치즈", "마늘"],
+    "preferences": {"spicy": 1},
+    "allergies": ["밀"],
+    "expect_zero": true,
+    "note": "밀 알레르기 - 파스타류 제외"
+  },
+  {
+    "id": "golden_004",
+    "fridge": ["닭가슴살", "올리브유"],
+    "preferences": {"spicy": 1},
+    "allergies": ["닭고기"],
+    "expect_zero": true,
+    "note": "닭고기 알레르기 - 동의어 정규화 확인"
+  },
+  {
+    "id": "golden_005",
+    "fridge": ["새우", "마늘"],
+    "preferences": {"spicy": 1},
+    "allergies": ["새우"],
+    "expect_zero": true,
+    "note": "새우 알레르기"
+  },
+  {
+    "id": "golden_006",
+    "fridge": ["조개", "마늘", "대파"],
+    "preferences": {"spicy": 1},
+    "allergies": ["조개"],
+    "expect_zero": true,
+    "note": "조개 알레르기 - 조개탕 제외"
+  },
+  {
+    "id": "golden_007",
+    "fridge": ["빵", "땅콩"],
+    "preferences": {"spicy": 1},
+    "allergies": ["땅콩"],
+    "expect_zero": true,
+    "note": "땅콩 알레르기"
+  },
+  {
+    "id": "golden_008",
+    "fridge": ["우유", "치즈"],
+    "preferences": {"spicy": 1},
+    "allergies": ["우유"],
+    "expect_zero": true,
+    "note": "유제품 알레르기"
+  },
+  {
+    "id": "golden_009",
+    "fridge": ["돼지고기", "마늘"],
+    "preferences": {"spicy": 3},
+    "allergies": ["돼지고기"],
+    "expect_zero": true,
+    "note": "돼지고기 알레르기 - 제육/까르보나라 등 제외"
+  },
+  {
+    "id": "golden_010",
+    "fridge": ["소고기", "양파"],
+    "preferences": {"spicy": 1},
+    "allergies": ["소고기"],
+    "expect_zero": true,
+    "note": "소고기 알레르기 - 잡채/스테이크 제외"
+  }
+]

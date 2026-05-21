@@ -1,0 +1,37 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schema/mcp.schema.json",
+  "_comment": "FridgeChef 팀 공유 MCP 서버 설정. 팀원 4명 누구나 fridge-chef/ 디렉토리에서 'claude' 실행 시 자동 로드됨. 추가 인증이 필요한 서버(github)는 환경변수만 채우면 활성화.",
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/honghwasu/softwareTeamProject/fridge-chef"
+      ],
+      "_note": "프로젝트 디렉토리 전체 읽기/쓰기. 각 팀원 PC 경로가 다르면 본인 클론 경로로 수정."
+    },
+    "git": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-git",
+        "--repository",
+        "/Users/honghwasu/softwareTeamProject/fridge-chef"
+      ],
+      "_note": "git log/diff/status/blame/checkout. 분담 작업 시 충돌 확인에 필수."
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      },
+      "_note": "PR/이슈/리뷰. 활성화: ~/.zshrc 에 export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_xxx 추가 후 새 셸 실행. 토큰은 https://github.com/settings/tokens 에서 repo·workflow 권한 발급."
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "_note": "FastAPI·Next.js·Tailwind·SQLAlchemy 등 라이브러리 공식 문서를 실시간 조회. SDK 사용 막힐 때 환각 방지에 필수."
+    }
+  }
+}
