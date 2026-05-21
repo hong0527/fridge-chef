@@ -58,9 +58,13 @@ class TestSoftFilter:
         self, recipe_repo, monkeypatch
     ) -> None:
         """# FR-014 — 부족 재료 > MISSING_INGREDIENTS_MAX 제외."""
+        from dataclasses import replace
+
         from app.core import config as cfg
 
-        monkeypatch.setattr(cfg.settings, "missing_ingredients_max", 1)
+        # frozen dataclass 우회 — replace 로 새 인스턴스 만든 뒤 model_b 내부 참조까지 패치.
+        new_settings = replace(cfg.settings, missing_ingredients_max=1)
+        monkeypatch.setattr("app.services.model_b.settings", new_settings)
 
         async def _mock_gemini(candidates, user_context):
             return None
