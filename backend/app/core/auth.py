@@ -55,3 +55,36 @@ async def get_current_user(
     if row is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "사용자를 찾을 수 없습니다.")
     return User(user_id=str(row.id), saved_allergies=list(row.allergies or []))
+
+
+async def get_current_db_user(  # NFR-PERF-001
+    token: str = Depends(_bearer_token),
+    db: AsyncSession = Depends(get_db),
+) -> DBUser:
+    """회원정보·알레르기 수정 전용 Depends — 전체 ORM 객체 반환.
+
+    기존 get_current_user와 JWT 검증 로직은 동일하나,
+    경량 dataclass 대신 DBUser ORM 객체를 그대로 반환한다.
+    password_hash 등 민감 필드가 포함되므로 이 Depends는
+    프로필 수정 엔드포인트에서만 사용한다.
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            JWT_SECRET,
+            algorithms=[JWT_ALGORITHM],
+            options={
+                "require": ["exp", "sub", "iat"],
+                "verify_exp": True,
+                "verify_iat": True,
+                "verify_signature": True,
+            },
+        )
+        user_id = int(payload["sub"])
+    except (jwt.PyJWTError, KeyError, ValueError) as exc:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "유효하지 않은 토큰") from exc
+
+    row: DBUser | None = await db.scalar(select(DBUser).where(DBUser.id == user_id))
+    if row is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "사용자를 찾을 수 없습니다.")
+    return row
