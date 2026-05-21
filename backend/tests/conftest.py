@@ -303,3 +303,37 @@ def recipe_repo():  # type: ignore[no-untyped-def]
         ),
     ]
     return RecipeRepository(recipes)
+
+
+# ─── auth_client fixture (test_auth_me_api 전용) ──────────────
+
+_TEST_EMAIL = "testme@test.com"
+_TEST_PASSWORD = "testpass1"
+
+
+@pytest.fixture
+def test_user_email() -> str:
+    return _TEST_EMAIL
+
+
+@pytest.fixture
+def test_user_password() -> str:
+    return _TEST_PASSWORD
+
+
+@pytest_asyncio.fixture
+async def auth_client(async_client):
+    """로그인된 상태의 AsyncClient — /api/auth/me 테스트 전용."""
+    await async_client.post("/api/auth/signup", json={
+        "email": _TEST_EMAIL,
+        "password": _TEST_PASSWORD,
+        "nickname": "테스터",
+        "allergies": [],
+    })
+    resp = await async_client.post("/api/auth/login", json={
+        "email": _TEST_EMAIL,
+        "password": _TEST_PASSWORD,
+    })
+    token = resp.json()["access_token"]
+    async_client.headers["Authorization"] = f"Bearer {token}"
+    return async_client

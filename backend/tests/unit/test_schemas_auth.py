@@ -1,7 +1,8 @@
 """유닛 테스트 — schemas/auth.py 신규 스키마 (AI 생성)"""
 import pytest
 from pydantic import ValidationError
-from app.schemas.auth import UpdateProfileRequest, UpdateAllergiesRequest
+
+from app.schemas.auth import UpdateAllergiesRequest, UpdateProfileRequest
 
 
 class TestUpdateProfileRequest:

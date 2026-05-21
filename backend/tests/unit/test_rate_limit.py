@@ -1,9 +1,14 @@
 """유닛 테스트 — rate_limit.py (AI 생성)"""
 import time
+
 import pytest
 from fastapi import HTTPException
+
 from app.core.rate_limit import (
-    check_rate_limit, record_failure, clear_attempts, _attempts,
+    _attempts,
+    check_rate_limit,
+    clear_attempts,
+    record_failure,
 )
 
 

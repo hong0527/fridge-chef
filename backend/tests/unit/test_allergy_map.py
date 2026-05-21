@@ -1,6 +1,5 @@
 """유닛 테스트 — allergy_map.py (AI 생성)"""
-import pytest
-from app.core.allergy_map import expand_allergies, ALLERGY_EXPANSION
+from app.core.allergy_map import ALLERGY_EXPANSION, expand_allergies
 
 
 class TestExpandAllergies:
