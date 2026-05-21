@@ -40,7 +40,7 @@ async def create_ingredient(
     return IngredientResponse.model_validate(item)
 
 
-@router.delete("/{ingredient_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{ingredient_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_ingredient(
     ingredient_id: int,
     user: User = Depends(get_current_user),
