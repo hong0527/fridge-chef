@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import create_access_token, hash_password, verify_password
 from app.core.synonym_map import normalize_list
 from app.models.orm import User
-from app.schemas.auth import SignupRequest
+from app.schemas.auth import SignupRequest, UpdateProfileRequest
 
 
 class AuthError(Exception):
@@ -50,3 +50,30 @@ def issue_token(user: User) -> tuple[str, int]:
 
     token = create_access_token(subject=str(user.id), extra={"email": user.email})
     return token, JWT_EXPIRE_MIN * 60
+
+
+async def update_profile(
+    db: AsyncSession,
+    user: User,
+    req: UpdateProfileRequest,
+) -> User:
+    if req.new_password is not None:
+        if not req.current_password or not verify_password(req.current_password, user.password_hash):
+            raise AuthError("현재 비밀번호가 올바르지 않습니다.")
+        user.password_hash = hash_password(req.new_password)  # NFR-SEC-001
+    if req.nickname is not None:
+        user.nickname = req.nickname
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def update_allergies(
+    db: AsyncSession,
+    user: User,
+    allergies: list[str],
+) -> User:
+    user.allergies = normalize_list(allergies)
+    await db.commit()
+    await db.refresh(user)
+    return user

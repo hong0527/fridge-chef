@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 
 class SignupRequest(BaseModel):
@@ -28,3 +28,19 @@ class UserPublic(BaseModel):
     email: EmailStr
     nickname: str
     allergies: list[str]
+
+
+class UpdateProfileRequest(BaseModel):
+    nickname: str | None = Field(None, min_length=1, max_length=64)
+    current_password: str | None = None
+    new_password: str | None = Field(None, min_length=8, max_length=128)
+
+    @model_validator(mode="after")
+    def at_least_one_field(self) -> UpdateProfileRequest:
+        if self.nickname is None and self.new_password is None:
+            raise ValueError("nickname 또는 new_password 중 하나 이상을 입력해주세요.")
+        return self
+
+
+class UpdateAllergiesRequest(BaseModel):
+    allergies: list[str] = Field(default_factory=list, max_length=50)
