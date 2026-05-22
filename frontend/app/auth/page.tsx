@@ -216,7 +216,7 @@ function AuthInner() {
           setVerifyOpen(false);
           router.push('/fridge');
         }}
-        title="이메일 인증을 확인해주세요"
+        title="가입이 완료되었어요"
       >
         <div className="space-y-4">
           <div className="flex items-start gap-3 rounded-2xl bg-herb-500/10 border-2 border-herb-500/40 p-4">
@@ -226,12 +226,12 @@ function AuthInner() {
                 {email}
               </p>
               <p className="text-clay-700 dark:text-cream-200 mt-1">
-                위 주소로 인증 메일을 보냈어요. 메일함에서 링크를 클릭해 가입을 완료해주세요.
+                회원가입이 완료되었습니다. 바로 냉장고 페이지로 이동합니다.
               </p>
             </div>
           </div>
           <p className="text-xs text-clay-500 dark:text-clay-400">
-            메일이 오지 않았다면 스팸함을 확인하거나 잠시 후 다시 시도해주세요.
+            ※ 이메일 인증 단계는 v2 릴리스에서 추가될 예정입니다 (SRS v1.11 격리).
           </p>
           <Button
             variant="primary"

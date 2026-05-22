@@ -95,10 +95,13 @@ app.add_middleware(
 )
 
 # 라우터 등록 (SDD §1.3 API 레이어)
+from app.api import ingredients  # noqa: E402
+
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(fridge.router, prefix="/api/fridge", tags=["fridge"])
 app.include_router(recommend.router, prefix="/api/recommend", tags=["recommend"])
 app.include_router(recipes.router, prefix="/api/recipes", tags=["recipes"])
+app.include_router(ingredients.router, prefix="/api/ingredients", tags=["ingredients"])
 
 
 @app.get("/health", tags=["meta"])

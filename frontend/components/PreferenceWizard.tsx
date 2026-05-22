@@ -13,9 +13,11 @@ interface PreferenceWizardProps {
   initial?: Partial<Preferences>;
 }
 
-const DIFFICULTIES = ['왕초보', '초보', '중급', '고수'] as const;
-const FOOD_TYPES = ['한식', '중식', '일식', '양식', '동남아', '인도식', '디저트', '간식'];
-const COUNTRIES = ['한국', '일본', '중국', '이탈리아', '프랑스', '태국', '베트남', '멕시코', '미국'];
+// 백엔드 _DIFFICULTY_MAP, _THEME_MAP, _COUNTRY_MAP 키와 동일하게 유지.
+// 키 불일치 시 default 값으로 떨어져 모델 A의 country/theme/difficulty 차원이 무력화됨.
+const DIFFICULTIES = ['초보', '중급', '고급'] as const;
+const FOOD_TYPES = ['메인요리', '반찬', '국물', '디저트', '음료'];
+const COUNTRIES = ['한식', '중식', '일식', '양식', '기타'];
 const COOK_TIMES = [15, 30, 45, 60, 90, 120];
 
 export function PreferenceWizard({
