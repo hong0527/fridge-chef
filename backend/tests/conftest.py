@@ -140,8 +140,12 @@ def client():  # type: ignore[no-untyped-def]
 
 
 @pytest_asyncio.fixture
-async def test_user(async_client) -> dict[str, Any]:
+async def test_user(async_client, db_session) -> dict[str, Any]:
     """기본 회원가입 사용자. password 평문 포함 (재로그인용)."""
+    from sqlalchemy import update
+
+    from app.models.orm import User
+
     payload = {
         "email": "tester@fridgechef.io",
         "password": "Test1234!",
@@ -150,6 +154,13 @@ async def test_user(async_client) -> dict[str, Any]:
     }
     resp = await async_client.post("/api/auth/signup", json=payload)
     assert resp.status_code == 201, f"signup 실패: {resp.text}"
+
+    # 테스트 환경에서는 이메일 인증 없이 바로 활성화
+    await db_session.execute(
+        update(User).where(User.email == payload["email"]).values(is_email_verified=True)
+    )
+    await db_session.commit()
+
     data = resp.json()
     data["password"] = payload["password"]
     return data
@@ -322,14 +333,25 @@ def test_user_password() -> str:
 
 
 @pytest_asyncio.fixture
-async def auth_client(async_client):
+async def auth_client(async_client, db_session):
     """로그인된 상태의 AsyncClient — /api/auth/me 테스트 전용."""
+    from sqlalchemy import update
+
+    from app.models.orm import User
+
     await async_client.post("/api/auth/signup", json={
         "email": _TEST_EMAIL,
         "password": _TEST_PASSWORD,
         "nickname": "테스터",
         "allergies": [],
     })
+
+    # 테스트 환경에서는 이메일 인증 없이 바로 활성화
+    await db_session.execute(
+        update(User).where(User.email == _TEST_EMAIL).values(is_email_verified=True)
+    )
+    await db_session.commit()
+
     resp = await async_client.post("/api/auth/login", json={
         "email": _TEST_EMAIL,
         "password": _TEST_PASSWORD,
