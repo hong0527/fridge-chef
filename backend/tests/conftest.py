@@ -44,6 +44,7 @@ os.environ.setdefault("JWT_ALGORITHM", "HS256")
 os.environ.setdefault("JWT_EXPIRE_MIN", "60")
 os.environ.setdefault("GEMINI_API_KEY", "")  # 빈 키 → 폴백 강제
 os.environ.setdefault("RECOMMEND_TIMEOUT_S", "10.0")
+os.environ.setdefault("BCRYPT_ROUNDS", "4")  # 테스트 속도 최적화 (운영: 12)
 
 
 # ─── pytest-asyncio 모드 (pyproject 에서 auto 지정) ────────────
@@ -314,6 +315,36 @@ def recipe_repo():  # type: ignore[no-untyped-def]
         ),
     ]
     return RecipeRepository(recipes)
+
+
+# ─── 이메일 인증 우회 헬퍼 (테스트 전용) ─────────────────────────
+
+
+@pytest_asyncio.fixture
+async def verified_signup(async_client, db_session):
+    """회원가입 + DB에서 즉시 이메일 인증 처리 헬퍼."""
+    from sqlalchemy import update
+
+    from app.models.orm import User
+
+    async def _create(
+        email: str,
+        password: str,
+        nickname: str = "테스터",
+        allergies: list | None = None,
+    ) -> None:
+        await async_client.post("/api/auth/signup", json={
+            "email": email,
+            "password": password,
+            "nickname": nickname,
+            "allergies": allergies or [],
+        })
+        await db_session.execute(
+            update(User).where(User.email == email).values(is_email_verified=True)
+        )
+        await db_session.commit()
+
+    return _create
 
 
 # ─── auth_client fixture (test_auth_me_api 전용) ──────────────
