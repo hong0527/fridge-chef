@@ -73,7 +73,7 @@ async def update_me(
     )
 
 
-@router.patch("/me/allergies", response_model=UserPublic)
+@router.patch("/me/allergies", response_model=UserPublic)  # FR-007
 async def update_my_allergies(
     req: UpdateAllergiesRequest,
     user: DBUser = Depends(get_current_db_user),

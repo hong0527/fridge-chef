@@ -1,4 +1,4 @@
-"""알레르기 카테고리 확장 맵 (NFR-EVAL-001 알레르기 0% 누출 보조).
+"""알레르기 카테고리 확장 맵.
 
 synonym_map.py 가 동의어→정규형 1:1 매핑이라면,
 이 파일은 알레르기 상위 카테고리→하위 세부 재료 1:N 확장을 담당한다.
@@ -40,7 +40,7 @@ ALLERGY_EXPANSION: dict[str, list[str]] = {
 }
 
 
-def expand_allergies(allergies: list[str]) -> list[str]:  # NFR-EVAL-001
+def expand_allergies(allergies: list[str]) -> list[str]:  # FR-007
     """알레르기 카테고리를 세부 재료로 확장한 리스트 반환 (중복 제거·순서 보존).
 
     normalize_list() 보다 먼저 호출해야 한다.

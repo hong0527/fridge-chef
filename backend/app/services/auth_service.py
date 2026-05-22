@@ -21,7 +21,6 @@ async def signup(db: AsyncSession, req: SignupRequest) -> User:
     if existing is not None:
         raise AuthError("이미 가입된 이메일입니다.")
 
-    # NFR-EVAL-001 — 알레르기는 비교 전에 동의어 정규화하지 않으면 누출 가능.
     # 회원가입 시점에 정규화해 저장한다 (예: "달걀" → "계란").
     user = User(
         email=str(req.email),
@@ -68,7 +67,7 @@ async def update_profile(
     return user
 
 
-async def update_allergies(
+async def update_allergies(  # FR-007
     db: AsyncSession,
     user: User,
     allergies: list[str],

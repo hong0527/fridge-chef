@@ -181,17 +181,25 @@ export default function FridgePage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-6 lg:px-12 flex flex-col md:flex-row gap-10 lg:gap-16 mt-8">
-        {/* Sidebar - Explicitly visible */}
-        <div className="w-full md:w-80 space-y-6">
+        {/* NFR-USE-002: PC(1920px)·태블릿(768px) 반응형 사이드바 */}
+        <div className="w-full md:w-72 space-y-6">
           <div className="p-6 bg-cream-50 dark:bg-clay-800 rounded-[32px] border border-clay-900/10 dark:border-cream-100/10 shadow-soft">
             <h3 className="font-display text-xl font-bold mb-6 px-1">설정</h3>
-            <div className="space-y-3">
-              <Button variant="secondary" size="lg" className="w-full justify-start gap-4 px-6 h-14 text-lg">
-                <User className="h-6 w-6 text-gochu-500" /> 프로필 설정
-              </Button>
-              <Button variant="secondary" size="lg" className="w-full justify-start gap-4 px-6 h-14 text-lg">
-                <Settings className="h-6 w-6 text-herb-500" /> 알레르기 설정
-              </Button>
+            <div className="flex flex-col gap-2">
+              <Link href="/profile" className="w-full">
+                <Button variant="secondary" size="lg" className="w-full justify-start gap-4 px-6 h-14 text-lg">
+                  <span className="flex items-center gap-3">
+                    <User className="h-6 w-6 text-gochu-500" />프로필 설정
+                  </span>
+                </Button>
+              </Link>
+              <Link href="/allergies" className="w-full">
+                <Button variant="secondary" size="lg" className="w-full justify-start gap-4 px-6 h-14 text-lg">
+                  <span className="flex items-center gap-3">
+                    <Settings className="h-6 w-6 text-herb-500" /> 알레르기 설정
+                  </span>
+                </Button>
+              </Link>
               <Button
                 variant="ghost"
                 size="lg"
@@ -268,7 +276,9 @@ export default function FridgePage() {
               loading={adding}
               type="button"
             >
-              <Plus className="h-4 w-4" /> 추가
+              <span className="flex items-center gap-1">
+                <Plus className="h-4 w-4" /> 추가
+              </span>
             </Button>
           </div>
 

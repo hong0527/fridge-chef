@@ -18,8 +18,13 @@ export const getToken = (): string | null => {
 
 export const setToken = (token: string | null) => {
   if (typeof window === 'undefined') return;
-  if (token) window.localStorage.setItem(TOKEN_KEY, token);
-  else window.localStorage.removeItem(TOKEN_KEY);
+  if (token) {
+    window.localStorage.setItem(TOKEN_KEY, token);
+    document.cookie = 'fc_auth=1; path=/; SameSite=Lax';
+  } else {
+    window.localStorage.removeItem(TOKEN_KEY);
+    document.cookie = 'fc_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+  }
 };
 
 /** SSR-safe 사용자 알레르기 캐시 접근 (recipe 상세에서 위반 경고용) */
@@ -232,13 +237,37 @@ export async function getRecipe(id: string): Promise<Recipe> {
   return data;
 }
 
+export interface UpdateProfileRequest {
+  nickname?: string;
+  current_password?: string;
+  new_password?: string;
+}
+
+export async function getMe(): Promise<UserPublic> {
+  const { data } = await api.get<UserPublic>('/auth/me');
+  return data;
+}
+
+export async function updateProfile(payload: UpdateProfileRequest): Promise<UserPublic> {
+  const { data } = await api.patch<UserPublic>('/auth/me', payload);
+  return data;
+}
+
+export async function updateAllergies(allergies: string[]): Promise<UserPublic> {
+  const { data } = await api.patch<UserPublic>('/auth/me/allergies', { allergies });
+  setAllergies(data.allergies);
+  return data;
+}
+
 // ============================================================
 // Error helper
 // ============================================================
 export function apiErrorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
-    const detail = (err.response?.data as { detail?: string } | undefined)?.detail;
-    return detail || err.message;
+    const detail = (err.response?.data as { detail?: unknown } | undefined)?.detail;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) return detail.map((d: { msg?: string }) => d.msg ?? '').join(', ');
+    return err.message;
   }
   return err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.';
 }
