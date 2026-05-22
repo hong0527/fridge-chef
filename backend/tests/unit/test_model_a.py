@@ -24,7 +24,6 @@ from app.services.model_a import (
     recommend_cold_storage,
 )
 
-
 # ─────────────────────────────────────────────────────────────
 _KR_MAIN_PREFS = {"country": "한식", "food_type": "메인요리"}
 _WEST_DESSERT_PREFS = {"country": "양식", "food_type": "디저트"}
