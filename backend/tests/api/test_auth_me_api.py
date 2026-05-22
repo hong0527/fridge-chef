@@ -134,14 +134,22 @@ class TestExistingEndpointsRegression:
         assert resp.status_code == 201
 
     async def test_login_still_works(
-        self, async_client: AsyncClient, test_user_email: str, test_user_password: str
+        self, async_client: AsyncClient, db_session, test_user_email: str, test_user_password: str
     ):
+        from sqlalchemy import update
+
+        from app.models.orm import User
+
         await async_client.post("/api/auth/signup", json={
             "email": test_user_email,
             "password": test_user_password,
             "nickname": "테스터",
             "allergies": [],
         })
+        await db_session.execute(
+            update(User).where(User.email == test_user_email).values(is_email_verified=True)
+        )
+        await db_session.commit()
         resp = await async_client.post(
             "/api/auth/login",
             json={"email": test_user_email, "password": test_user_password},

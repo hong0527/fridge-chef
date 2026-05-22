@@ -112,13 +112,17 @@ class TestFridgeCRUD:
         assert resp.status_code == 404
 
     async def test_other_users_cannot_delete_my_ingredient(
-        self, async_client, test_jwt_token, test_fridge
+        self, async_client, db_session, test_jwt_token, test_fridge
     ) -> None:
         """# FR-010·NFR-SEC-002 — 타 사용자가 본인 재료 삭제 시도 → 404 (혹은 403).
 
         구현은 사용자 격리를 위해 user_id 일치 조건으로 row 미선택 → 404 반환.
         """
-        # 다른 사용자 회원가입 + 로그인
+        from sqlalchemy import update
+
+        from app.models.orm import User
+
+        # 다른 사용자 회원가입 + 이메일 인증 + 로그인
         await async_client.post(
             "/api/auth/signup",
             json={
@@ -127,6 +131,10 @@ class TestFridgeCRUD:
                 "nickname": "공격자",
             },
         )
+        await db_session.execute(
+            update(User).where(User.email == "attacker@fridgechef.io").values(is_email_verified=True)
+        )
+        await db_session.commit()
         login = await async_client.post(
             "/api/auth/login",
             json={"email": "attacker@fridgechef.io", "password": "Attacker1!"},

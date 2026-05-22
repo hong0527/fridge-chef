@@ -25,9 +25,12 @@ JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRE_MIN: int = int(os.getenv("JWT_EXPIRE_MIN", "60"))  # 1h (refresh 토큰 패턴 권장)
 
 
+_BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "12"))
+
+
 def hash_password(plain: str) -> str:
-    """bcrypt 해시 (work factor 12)."""
-    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
+    """bcrypt 해시 — 운영: rounds=12, 테스트: BCRYPT_ROUNDS=4."""
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:

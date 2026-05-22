@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import secrets
+from datetime import UTC, datetime, timedelta
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +12,9 @@ from app.core.security import create_access_token, hash_password, verify_passwor
 from app.core.synonym_map import normalize_list
 from app.models.orm import User
 from app.schemas.auth import SignupRequest, UpdateProfileRequest
+from app.services.email_service import EmailError, send_verification_email
+
+EMAIL_VERIFY_EXPIRE_HOURS = 24
 
 
 class AuthError(Exception):
@@ -23,14 +29,41 @@ async def signup(db: AsyncSession, req: SignupRequest) -> User:
 
     # NFR-EVAL-001 — 알레르기는 비교 전에 동의어 정규화하지 않으면 누출 가능.
     # 회원가입 시점에 정규화해 저장한다 (예: "달걀" → "계란").
+    token = secrets.token_urlsafe(32)
     user = User(
         email=str(req.email),
         password_hash=hash_password(req.password),
         nickname=req.nickname,
         allergies=normalize_list(req.allergies or []),
         preferences={},
+        email_verification_token=token,
+        email_verification_token_expires_at=datetime.now(tz=UTC) + timedelta(hours=EMAIL_VERIFY_EXPIRE_HOURS),
     )
     db.add(user)
+    await db.commit()
+    await db.refresh(user)
+
+    try:
+        send_verification_email(str(req.email), token)
+    except EmailError:
+        pass  # 메일 발송 실패가 회원가입을 막지 않음
+
+    return user
+
+
+async def verify_email(db: AsyncSession, token: str) -> User:
+    """이메일 인증 토큰 검증 → is_email_verified=True."""
+    user = await db.scalar(select(User).where(User.email_verification_token == token))
+    if user is None:
+        raise AuthError("유효하지 않은 인증 토큰입니다.")
+    if user.is_email_verified:
+        return user
+    expires_at = user.email_verification_token_expires_at
+    if expires_at is None or datetime.now(tz=UTC) > expires_at:
+        raise AuthError("인증 토큰이 만료되었습니다.")
+    user.is_email_verified = True
+    user.email_verification_token = None
+    user.email_verification_token_expires_at = None
     await db.commit()
     await db.refresh(user)
     return user
@@ -41,6 +74,8 @@ async def authenticate(db: AsyncSession, email: str, password: str) -> User:
     user = await db.scalar(select(User).where(User.email == email))
     if user is None or not verify_password(password, user.password_hash):
         raise AuthError("이메일 또는 비밀번호가 올바르지 않습니다.")
+    if not user.is_email_verified:
+        raise AuthError("이메일 인증이 필요합니다. 받은 편지함을 확인해주세요.")
     return user
 
 

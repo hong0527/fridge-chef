@@ -6,9 +6,12 @@ CREATE TABLE IF NOT EXISTS users (
     email           VARCHAR(255) UNIQUE NOT NULL,
     password_hash   VARCHAR(255) NOT NULL,
     nickname        VARCHAR(64)  NOT NULL,
-    allergies       JSONB NOT NULL DEFAULT '[]'::jsonb,
-    preferences     JSONB NOT NULL DEFAULT '{}'::jsonb,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    allergies                           JSONB NOT NULL DEFAULT '[]'::jsonb,
+    preferences                         JSONB NOT NULL DEFAULT '{}'::jsonb,
+    is_email_verified                   BOOLEAN NOT NULL DEFAULT FALSE,
+    email_verification_token            VARCHAR(128),
+    email_verification_token_expires_at TIMESTAMPTZ,
+    created_at                          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS ix_users_email ON users (email);
 

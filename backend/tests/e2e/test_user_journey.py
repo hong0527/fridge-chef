@@ -12,20 +12,11 @@ class TestPersonaP1_Kim:
     """P1 김민준 — 자취·빠른 한끼·초보."""
 
     async def test_p1_signup_to_recommend_flow(
-        self, async_client, mock_gemini_success
+        self, async_client, mock_gemini_success, verified_signup
     ) -> None:
         """# UC-01·02·03 — 회원가입 → 냉장고 등록 → 추천."""
-        # 1) 회원가입
-        signup = await async_client.post(
-            "/api/auth/signup",
-            json={
-                "email": "minjun@fridgechef.io",
-                "password": "Minjun123!",
-                "nickname": "김민준",
-                "allergies": [],
-            },
-        )
-        assert signup.status_code == 201
+        # 1) 회원가입 + 이메일 인증
+        await verified_signup("minjun@fridgechef.io", "Minjun123!", "김민준")
 
         # 2) 로그인
         login = await async_client.post(
@@ -74,20 +65,11 @@ class TestPersonaP2_Lee:
     """P2 이수진 — 알레르기 영구 저장 (조개·땅콩)."""
 
     async def test_p2_allergies_zero_exposure(
-        self, async_client, mock_gemini_success
+        self, async_client, mock_gemini_success, verified_signup
     ) -> None:
         """# NFR-EVAL-001·FR-007 — 저장 알레르기 자동 적용 → 위반 0건."""
-        # 1) 알레르기 포함 회원가입
-        signup = await async_client.post(
-            "/api/auth/signup",
-            json={
-                "email": "sujin@fridgechef.io",
-                "password": "Sujin1234!",
-                "nickname": "이수진",
-                "allergies": ["조개", "땅콩"],
-            },
-        )
-        assert signup.status_code == 201
+        # 1) 알레르기 포함 회원가입 + 이메일 인증
+        await verified_signup("sujin@fridgechef.io", "Sujin1234!", "이수진", ["조개", "땅콩"])
 
         # 2) 로그인
         login = await async_client.post(
@@ -138,19 +120,11 @@ class TestPersonaP3_Park:
     """P3 박정희 — 가족 4인분, 메인요리·중급 난이도."""
 
     async def test_p3_family_main_dish_preference(
-        self, async_client, mock_gemini_success
+        self, async_client, mock_gemini_success, verified_signup
     ) -> None:
         """# FR-011 — 가족 4인분 → 메인요리·중급 난이도 추천."""
-        # 1) 회원가입 + 로그인
-        await async_client.post(
-            "/api/auth/signup",
-            json={
-                "email": "junghee@fridgechef.io",
-                "password": "Junghee123!",
-                "nickname": "박정희",
-                "allergies": [],
-            },
-        )
+        # 1) 회원가입 + 이메일 인증 + 로그인
+        await verified_signup("junghee@fridgechef.io", "Junghee123!", "박정희")
         login = await async_client.post(
             "/api/auth/login",
             json={"email": "junghee@fridgechef.io", "password": "Junghee123!"},

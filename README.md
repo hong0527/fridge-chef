@@ -19,13 +19,13 @@
 ┌──────────────▼───────────────┐
 │ Presentation  FastAPI 라우터 (/api/*)
 ├──────────────────────────────┤
-│ Service       AuthService · FridgeService · RecommendService
+│ Service       AuthService · EmailService · FridgeService · RecommendService
 │               + Model A · Model B · GeminiClient
 ├──────────────────────────────┤
 │ Data          SQLAlchemy ORM (User · FridgeIngredient · Recipe · Rating)
 └──────────────┬───────────────┘
                │
-       Postgres 15 ──── Redis 7 (캐시·세션)
+       Postgres 15 ──── Redis 7 (캐시·세션) ──── Mailpit (로컬 메일)
 ```
 
 ## 빠른 시작
@@ -45,9 +45,14 @@ cp .env.example .env
 ### 3. 전체 스택 실행 (권장)
 ```bash
 docker-compose up --build
-# 백엔드: http://localhost:8000/docs
-# 프론트: http://localhost:3000
+# 백엔드:  http://localhost:8000/docs
+# 프론트:  http://localhost:3000
+# Mailpit: http://localhost:8025  ← 이메일 인증 메일 확인
 ```
+
+### 이메일 인증 (로컬)
+회원가입 시 인증 메일이 **Mailpit**(로컬 메일 캐처)으로 발송됩니다.
+`http://localhost:8025` 에서 메일을 확인하고 인증 링크를 클릭하면 로그인 가능합니다.
 
 ### 4. 개별 실행 (개발 모드)
 
@@ -85,7 +90,7 @@ fridge-chef/
 ├── backend/                 # FastAPI 백엔드
 │   ├── app/
 │   │   ├── api/             # 라우터 (auth · fridge · recommend · recipes)
-│   │   ├── services/        # 비즈니스 로직 (auth_service · fridge_service · recommend_service · model_a · model_b · gemini_client)
+│   │   ├── services/        # 비즈니스 로직 (auth_service · email_service · fridge_service · recommend_service · model_a · model_b · gemini_client)
 │   │   ├── models/          # SQLAlchemy ORM + Recipe 도메인 + RecipeRepository
 │   │   ├── schemas/         # Pydantic 요청·응답 DTO
 │   │   └── core/            # config · db · security · synonym_map · auth
