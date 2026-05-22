@@ -28,6 +28,11 @@ class UserPublic(BaseModel):
     email: EmailStr
     nickname: str
     allergies: list[str]
+    is_email_verified: bool = False
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(min_length=1)
 
 
 class UpdateProfileRequest(BaseModel):

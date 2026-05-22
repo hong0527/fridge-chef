@@ -28,6 +28,11 @@ class User(Base):
     nickname: Mapped[str] = mapped_column(String(64), nullable=False)
     allergies: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     preferences: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    is_email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    email_verification_token: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    email_verification_token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

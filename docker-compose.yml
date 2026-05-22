@@ -57,8 +57,19 @@ services:
       TOP_K_MODEL_B_PRE: ${TOP_K_MODEL_B_PRE:-10}
       TOP_K_MODEL_B_FINAL: ${TOP_K_MODEL_B_FINAL:-3}
       MISSING_INGREDIENTS_MAX: ${MISSING_INGREDIENTS_MAX:-5}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      MAILPIT_HOST: mailpit
+      MAILPIT_PORT: 1025
     ports:
       - "8000:8000"
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: fridgechef-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
 
   frontend:
     build:

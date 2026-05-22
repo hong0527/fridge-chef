@@ -89,6 +89,7 @@ export interface UserPublic {
   email: string;
   nickname: string;
   allergies: string[];
+  is_email_verified: boolean;
 }
 
 /** IngredientResponse — backend/app/schemas/fridge.py */
@@ -251,6 +252,11 @@ export async function getMe(): Promise<UserPublic> {
 
 export async function updateProfile(payload: UpdateProfileRequest): Promise<UserPublic> {  // NFR-SEC-001
   const { data } = await api.patch<UserPublic>('/auth/me', payload);
+  return data;
+}
+
+export async function verifyEmail(token: string): Promise<UserPublic> {
+  const { data } = await api.post<UserPublic>('/auth/verify-email', { token });
   return data;
 }
 
