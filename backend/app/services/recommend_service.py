@@ -49,16 +49,19 @@ async def recommend_dual(
             repo=repo,
         )
 
-    try:
-        model_a, model_b = await asyncio.wait_for(
-            asyncio.gather(_run_a(), _run_b()),
-            timeout=settings.recommend_timeout_s,
-        )
-    except TimeoutError:
-        _logger.error("recommend_dual 타임아웃 (%.1fs)", settings.recommend_timeout_s)
-        return {"model_a": [], "model_b": []}
-    except Exception as exc:  # pragma: no cover
-        _logger.exception("recommend_dual 실패: %s", exc)
-        return {"model_a": [], "model_b": []}
+    async def _safe(name: str, coro) -> list[dict]:
+        """단일 모델 독립 격리 — 한쪽 실패가 다른 쪽 결과 폐기를 막음 (NFR-PERF-002)."""
+        try:
+            return await asyncio.wait_for(coro, timeout=settings.recommend_timeout_s)
+        except TimeoutError:
+            _logger.warning("%s 타임아웃 (%.1fs)", name, settings.recommend_timeout_s)
+            return []
+        except Exception:
+            _logger.exception("%s 실패", name)
+            return []
 
+    model_a, model_b = await asyncio.gather(
+        _safe("model_a", _run_a()),
+        _safe("model_b", _run_b()),
+    )
     return {"model_a": model_a, "model_b": model_b}

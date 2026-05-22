@@ -125,5 +125,7 @@ async def gemini_select_top3(
         return None
     # 형 보정
     parsed.setdefault("reasons", [])
-    parsed.setdefault("citation_ids", parsed["selected"])
+    # NFR-EVAL-002: citation_ids 누락 시 빈 리스트로 폴백 → model_b 검증에서 환각 차단.
+    # 자기인용(selected 그대로 채우기)은 환각 차단을 무력화하므로 금지.
+    parsed.setdefault("citation_ids", [])
     return parsed
