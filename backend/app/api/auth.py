@@ -1,7 +1,9 @@
 """/api/auth/* — 회원가입·로그인 라우터.
 
-# NFR-SEC-002 — bcrypt 해시 + JWT
-# NFR-SEC-001 — 비밀키는 환경변수로만 주입
+# NFR-SEC-001 — 비밀번호 bcrypt 해시 저장 (평문 금지)
+# NFR-SEC-002 — JWT_SECRET은 환경변수(.env)로만 주입, 클라이언트 노출 금지
+# NFR-SEC-003 — 로그인 실패 5회 시 30분 잠금
+# NFR-SEC-004 — 회원 탈퇴 시 개인정보 즉시 파기 (DELETE /me)
 """
 
 from __future__ import annotations
@@ -51,7 +53,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenR
     return TokenResponse(access_token=token, expires_in=expires_in)
 
 
-@router.get("/me", response_model=UserPublic)  # NFR-PERF-001
+@router.get("/me", response_model=UserPublic)
 async def me(user: DBUser = Depends(get_current_db_user)) -> UserPublic:
     return UserPublic(
         id=user.id, email=user.email, nickname=user.nickname, allergies=user.allergies
@@ -83,3 +85,12 @@ async def update_my_allergies(
     return UserPublic(
         id=user.id, email=user.email, nickname=user.nickname, allergies=user.allergies
     )
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT, response_model=None)  # NFR-SEC-004
+async def delete_me(
+    user: DBUser = Depends(get_current_db_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """회원 탈퇴 — 이메일·알레르기·냉장고 재료 즉시 파기 (cascade delete). NFR-SEC-004."""
+    await auth_service.delete_account(db, user)

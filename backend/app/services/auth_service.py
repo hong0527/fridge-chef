@@ -1,4 +1,4 @@
-"""인증 서비스 (SDD §1.3 Service Layer, NFR-SEC-002)."""
+"""인증 서비스 (SDD §1.3 Service Layer, NFR-SEC-001 bcrypt, NFR-SEC-004 탈퇴)."""
 
 from __future__ import annotations
 
@@ -77,3 +77,13 @@ async def update_allergies(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+async def delete_account(db: AsyncSession, user: User) -> None:
+    """회원 탈퇴 — 이메일·알레르기·냉장고 재료 즉시 파기.
+
+    NFR-SEC-004: ORM cascade="all, delete-orphan" 설정으로
+    FridgeIngredient 등 연관 레코드가 함께 삭제된다.
+    """
+    await db.delete(user)
+    await db.commit()

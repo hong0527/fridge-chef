@@ -216,7 +216,7 @@ export async function removeIngredient(id: number): Promise<void> {
 
 export async function searchIngredients(query: string): Promise<string[]> {
   // SYNONYM_MAP 자동완성 (서버 측)
-  const { data } = await api.get<{ suggestions: string[] }>('/ingredients/search', {
+  const { data } = await api.get<{ suggestions: string[] }>('/fridge/search', {
     params: { q: query },
   });
   return data.suggestions;

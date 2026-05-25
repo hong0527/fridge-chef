@@ -1,7 +1,7 @@
 """/api/fridge/* — 냉장고 재료 CRUD.
 
-# NFR-SEC-002 — JWT 인증 (app.core.auth.get_current_user 단일 출처)
 # SDD §3.2 — 입력 즉시 동의어 정규화
+# JWT 인증: 모든 엔드포인트에 get_current_user Depends 적용
 """
 
 from __future__ import annotations
@@ -49,3 +49,13 @@ async def delete_ingredient(
     ok = await fridge_service.delete_for_user(db, int(user.user_id), ingredient_id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="재료를 찾을 수 없습니다.")
+
+
+@router.get("/search")  # NFR-USE-001 — 자동완성으로 재료 입력 시간 단축
+async def search_ingredients(
+    q: str = "",
+    _: User = Depends(get_current_user),  # RF-02: 기존 fridge 엔드포인트와 동일하게 인증 적용
+) -> dict:
+    """재료 이름 자동완성 — SYNONYM_MAP 기반 (RF-01: Service Layer, RF-02: 인증)."""
+    results = fridge_service.search_ingredient_suggestions(q)
+    return {"suggestions": results}

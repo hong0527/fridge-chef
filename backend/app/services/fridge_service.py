@@ -5,9 +5,33 @@ from __future__ import annotations
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.synonym_map import normalize
+from app.core.synonym_map import SYNONYM_MAP, normalize
 from app.models.orm import FridgeIngredient
 from app.schemas.fridge import IngredientCreate
+
+
+# NFR-USE-001 — 자동완성으로 재료 입력 시간 단축 (3분 이내 추천 흐름)
+def search_ingredient_suggestions(q: str, limit: int = 8) -> list[str]:
+    """SYNONYM_MAP 기반 재료 이름 자동완성 (RF-01: Service Layer, RF-04: 동의어 자체 반환).
+
+    동의어("달걀") 입력 시 동의어 자체를 반환.
+    정규형("계란") 입력 시 정규형을 반환.
+    """
+    needle = q.strip().lower()
+    if not needle:
+        return []
+    seen: set[str] = set()
+    results: list[str] = []
+    for synonym, canonical in SYNONYM_MAP.items():
+        if needle in synonym.lower() and synonym not in seen:
+            seen.add(synonym)
+            results.append(synonym)
+        if needle in canonical.lower() and canonical not in seen:
+            seen.add(canonical)
+            results.append(canonical)
+        if len(results) >= limit:
+            break
+    return results
 
 
 async def list_for_user(db: AsyncSession, user_id: int) -> list[FridgeIngredient]:

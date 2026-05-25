@@ -115,7 +115,8 @@ export default function AllergiesPage() {
   };
 
   return (
-    <main className="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    // NFR-USE-002: max-w-4xl로 PC·태블릿 공통 레이아웃 너비 통일
+    <main className="max-w-4xl mx-auto px-6 py-12 space-y-10">
       <div className="flex items-center justify-between">
         <h1 className="font-display text-3xl font-bold flex items-center gap-2">
           <Leaf className="h-7 w-7 text-gochu-500" aria-hidden="true" />

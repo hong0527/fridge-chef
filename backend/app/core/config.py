@@ -1,4 +1,4 @@
-"""환경설정 (NFR-SEC-001 — API 키 환경변수 격리)."""
+"""환경설정 (NFR-SEC-002 — Gemini API 키 환경변수 격리, 클라이언트 노출 금지)."""
 
 from __future__ import annotations
 

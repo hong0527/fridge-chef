@@ -2,7 +2,7 @@
 
 NFR-REL-001: 외부 호출 8초 타임아웃 후 폴백 경로 (model_b 호출 측에서 처리).
 NFR-EVAL-002: citation_id 화이트리스트 검증 ≥95%.
-NFR-SEC-001: API 키 환경변수 (`GEMINI_API_KEY`).
+NFR-SEC-002: API 키 환경변수 (`GEMINI_API_KEY`), 클라이언트 코드 노출 금지.
 """
 
 from __future__ import annotations
