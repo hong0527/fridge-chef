@@ -38,24 +38,38 @@ class TestVector:
         vec = _vec_from_recipe(recipe, _KR_MAIN_PREFS)
         assert len(vec) == 5
 
-    def test_vec_spicy_normalized_by_5(self, recipe_repo) -> None:
-        """# FR-011 — 맵기 차원 = spicy/5."""
+    def test_vec_spicy_distance_match(self, recipe_repo) -> None:
+        """# FR-011 — spicy 거리 기반: 1 - |pref - recipe| / 5. tracer 권장으로 floor 제거."""
         recipe = recipe_repo.get("t002")  # spicy=2
+        # _KR_MAIN_PREFS에 spicy 미지정 → default 3. |3-2|/5 = 0.2 → match = 0.8
         vec = _vec_from_recipe(recipe, _KR_MAIN_PREFS)
-        assert math.isclose(vec[0], 2 / 5.0)
+        assert math.isclose(vec[0], 1.0 - abs(3 - 2) / 5.0)
 
-    def test_vec_difficulty_normalized_by_3(self, recipe_repo) -> None:
-        """# FR-011 — 난이도 차원 = difficulty_level/3."""
-        recipe = recipe_repo.get("t004")  # difficulty_level=2
+    def test_vec_difficulty_equivalence_match(self, recipe_repo) -> None:
+        """# FR-011 — difficulty 동치 매칭 (이전 floor 0.333 결함 수정).
+
+        tracer CRITICAL 수정: 사용자 "고급" vs 레시피 "초보" 곱이 0.333이 아닌 0.0이
+        되어 country/theme 일치에 압도되지 않음.
+        """
+        recipe = recipe_repo.get("t004")  # difficulty_level=2 (중급)
+        # _KR_MAIN_PREFS difficulty 미지정 → default "초보"(1) → 불일치 0.0
         vec = _vec_from_recipe(recipe, _KR_MAIN_PREFS)
-        assert math.isclose(vec[1], 2 / 3.0)
+        assert vec[1] == 0.0
+        # 사용자 "중급" 선호 시 동치 → 1.0
+        prefs_mid = {**_KR_MAIN_PREFS, "difficulty": "중급"}
+        assert _vec_from_recipe(recipe, prefs_mid)[1] == 1.0
 
-    def test_vec_low_calorie_binary(self, recipe_repo) -> None:
-        """# FR-011 — 저칼로리 차원 = 0 or 1."""
-        low = recipe_repo.get("t003")  # is_low_calorie=True
+    def test_vec_diet_match_inactive_when_pref_false(self, recipe_repo) -> None:
+        """# FR-011 — diet=False면 차원 무관(항상 1), diet=True면 동치 매칭."""
+        low = recipe_repo.get("t003")    # is_low_calorie=True
         not_low = recipe_repo.get("t002")
+        # diet=False (default) → 다이어트 무관 → 둘 다 1.0
         assert _vec_from_recipe(low, _KR_MAIN_PREFS)[2] == 1.0
-        assert _vec_from_recipe(not_low, _KR_MAIN_PREFS)[2] == 0.0
+        assert _vec_from_recipe(not_low, _KR_MAIN_PREFS)[2] == 1.0
+        # diet=True → 저칼로리만 1, 일반은 0
+        prefs_diet = {**_KR_MAIN_PREFS, "diet": True}
+        assert _vec_from_recipe(low, prefs_diet)[2] == 1.0
+        assert _vec_from_recipe(not_low, prefs_diet)[2] == 0.0
 
     def test_vec_country_match_with_korean_prefs(self, recipe_repo) -> None:
         """# FR-011 — country 동치 매칭: 한식 선호 + 한식 레시피 → 1.0, 양식 레시피 → 0.0."""
@@ -79,21 +93,13 @@ class TestVector:
         assert _vec_from_recipe(kr, _WEST_DESSERT_PREFS)[3] == 0.0
         assert _vec_from_recipe(west, _WEST_DESSERT_PREFS)[3] == 1.0
 
-    def test_vec_from_prefs_country_theme_always_one(self) -> None:
-        """# FR-011 — prefs 벡터의 country/theme는 자기 동치이므로 항상 1.0."""
-        prefs = {
-            "spicy": 5,
-            "difficulty": "고급",
-            "diet": True,
-            "country": "양식",
-            "food_type": "디저트",
-        }
-        vec = _vec_from_prefs(prefs)
-        assert math.isclose(vec[0], 1.0)        # 5/5
-        assert math.isclose(vec[1], 1.0)        # 3/3
-        assert vec[2] == 1.0                    # diet
-        assert vec[3] == 1.0                    # country_match (self)
-        assert vec[4] == 1.0                    # theme_match (self)
+    def test_vec_from_prefs_all_ones(self) -> None:
+        """# FR-011 — prefs 벡터는 모든 차원이 자기 동치이므로 [1,1,1,1,1].
+
+        recipe vec의 각 *_match와 코사인 곱이 가능해 매칭 정도가 점수에 직접 반영된다.
+        """
+        vec = _vec_from_prefs({"difficulty": "고급", "diet": True, "country": "양식"})
+        assert vec == [1.0, 1.0, 1.0, 1.0, 1.0]
 
 
 # ─────────────────────────────────────────────────────────────

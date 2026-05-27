@@ -50,41 +50,39 @@ _THEME_MAP: dict[str, str] = {
 
 
 def _vec_from_recipe(r: Recipe, prefs: dict) -> list[float]:
-    """레시피 → 사용자 선호 기준 5차원 정규화 벡터.
+    """레시피 → 사용자 선호 기준 5차원 정규화 벡터 (모든 차원 0~1 동치/거리 매칭).
 
-    차원: [맵기, 난이도, 저칼로리, country_match(0|1), theme_match(0|1)].
+    차원 (모두 사용자 선호 대비 점수, 1=완벽 일치, 0=완전 불일치):
+      0. spicy_match    — 1 - |pref - recipe| / 5  (거리 기반)
+      1. diff_match     — 동치 0|1 (이전 0.333 floor 제거 — tracer CRITICAL 수정)
+      2. diet_match     — diet=True면 동치, diet=False면 항상 1 (다이어트 비활성 시 무관)
+      3. country_match  — 동치 0|1
+      4. theme_match    — 동치 0|1
 
-    country/theme는 사용자 선호와 동치 여부로 인코딩 — ordinal 매핑(kr=0.2, cn=0.4...)이
-    "한식·중식 거리 0.2 < 한식·양식 거리 0.6"처럼 명목형에 허위 순서를 부여하던 왜곡을 제거.
-    SDD §3.2 "5차원 벡터 코사인" 텍스트 유지.
+    이전 결함(model_a.py:65 difficulty_level/3.0): 사용자 "고급"(1.0) vs 레시피 "초보"(0.333)
+    곱 0.333이 country/theme 일치 1.0 두 차원에 압도되던 문제를 동치 매칭으로 해소.
     """
+    spicy_pref = int(prefs.get("spicy", 3))
+    diff_pref = _DIFFICULTY_MAP.get(str(prefs.get("difficulty", "초보")), 1)
     country_pref = _COUNTRY_MAP.get(str(prefs.get("country", "한식")), "kr")
     theme_pref = _THEME_MAP.get(str(prefs.get("food_type", "메인요리")), "main")
-    return [
-        r.spicy / 5.0,
-        r.difficulty_level / 3.0,
-        1.0 if r.is_low_calorie else 0.0,
-        1.0 if r.country == country_pref else 0.0,
-        1.0 if r.theme == theme_pref else 0.0,
-    ]
+    diet_pref = bool(prefs.get("diet", False))
+
+    spicy_match = 1.0 - abs(spicy_pref - r.spicy) / 5.0
+    diff_match = 1.0 if r.difficulty_level == diff_pref else 0.0
+    diet_match = (1.0 if r.is_low_calorie else 0.0) if diet_pref else 1.0
+    country_match = 1.0 if r.country == country_pref else 0.0
+    theme_match = 1.0 if r.theme == theme_pref else 0.0
+    return [spicy_match, diff_match, diet_match, country_match, theme_match]
 
 
 def _vec_from_prefs(prefs: dict) -> list[float]:
     """사용자 선호 → 5차원 정규화 벡터.
 
-    country/theme 차원은 "자기 자신과의 동치"이므로 항상 1.0 — 레시피 벡터의
-    country_match/theme_match와 코사인 곱이 가능해 동치 시 점수 가산.
+    모든 차원이 "자기 자신과의 동치"이므로 항상 1.0 — 레시피 벡터의 각 *_match와
+    코사인 곱이 가능해 매칭 정도가 점수에 직접 반영된다.
     """
-    spicy = int(prefs.get("spicy", 3))
-    diff = _DIFFICULTY_MAP.get(str(prefs.get("difficulty", "초보")), 1)
-    diet = bool(prefs.get("diet", False))
-    return [
-        spicy / 5.0,
-        diff / 3.0,
-        1.0 if diet else 0.0,
-        1.0,
-        1.0,
-    ]
+    return [1.0, 1.0, 1.0, 1.0, 1.0]
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
@@ -136,8 +134,13 @@ async def recommend_cold_storage(
         # 4단계: 조리시간
         if r.cook_min > max_cook:
             continue
-        # 5단계: 코사인 유사도 (country/theme는 동치 매칭으로 인코딩 — ordinal 왜곡 제거)
-        score = _cosine(pref_vec, _vec_from_recipe(r, preferences))
+        # 5단계: 코사인 유사도 + difficulty 보너스 점수
+        # 데이터 분포상 difficulty=3(고급) 5.8%로 희소하므로 cosine만으로는 상위 노출 부족.
+        # difficulty 동치 시 +0.15 가산점, 1단계 차이 +0.05, 2단계 차이 0 (선형 디케이).
+        base_score = _cosine(pref_vec, _vec_from_recipe(r, preferences))
+        diff_pref_num = _DIFFICULTY_MAP.get(str(preferences.get("difficulty", "초보")), 1)
+        diff_bonus = max(0.0, 0.15 - 0.075 * abs(r.difficulty_level - diff_pref_num))
+        score = base_score + diff_bonus
         scored.append((score, r))
 
     # 6단계: 상위 K 반환 (점수 desc, 동점 시 cook_min asc)

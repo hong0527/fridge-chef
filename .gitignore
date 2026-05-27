@@ -243,3 +243,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+backend/data/recipes_images/

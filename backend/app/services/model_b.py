@@ -78,6 +78,10 @@ async def recommend_missing_ingredients(
         # 3단계: 보유/부족 분류
         have, missing = _analyze_ingredients(fridge_norm, r.whole_ingredients)
         # 4단계: 소프트 필터
+        # SDD §3.2 model_b 정의 — "부족 재료 N개만 더 사면 만들 수 있는" 레시피.
+        # missing=0은 model_a(냉털) 영역이므로 model_b에서 명시적으로 제외 (중복 차단).
+        if len(missing) == 0:
+            continue
         if len(missing) > max_missing:
             continue
         if len(r.whole_ingredients) == 0:
