@@ -32,6 +32,7 @@ class Recipe:
     country: str = "kr"
     theme: str = "main"
     allergens: list[str] = field(default_factory=list)
+    image_url: str | None = None  # /static/recipes/{cookid}.jpg
 
     def to_brief_dict(self) -> dict:
         return {
@@ -42,4 +43,5 @@ class Recipe:
             "difficulty_level": self.difficulty_level,
             "country": self.country,
             "theme": self.theme,
+            "image_url": self.image_url,
         }

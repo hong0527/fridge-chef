@@ -105,17 +105,20 @@ ALLERGEN_PATTERNS = {
     "우유": ["우유", "치즈", "버터", "크림", "요거트", "요구르트", "생크림", "휘핑크림", "분유"],
     "메밀": ["메밀"],
     "땅콩": ["땅콩"],
-    "대두": ["대두", "두부", "된장", "간장", "두유", "콩나물", "콩"],
-    "밀": ["밀가루", "빵", "면", "스파게티", "파스타", "라면", "우동", "라멘", "칼국수", "수제비", "만두피", "튀김가루", "부침가루", "통밀"],
+    # "콩" 단독 패턴 제거 — "땅콩"이 substring 매칭되어 false positive.
+    "대두": ["대두", "두부", "된장", "간장", "두유", "콩나물", "메주콩", "검은콩", "흰콩", "백태", "흑태"],
+    "밀": ["밀가루", "빵", "면", "스파게티", "파스타", "라면", "우동", "라멘", "칼국수", "수제비", "만두피", "튀김가루", "부침가루", "통밀", "펜네", "마카로니", "라자냐", "푸실리", "리조니", "탈리아텔레", "링귀니"],
     "고등어": ["고등어"],
-    "게": ["게", "꽃게", "대게", "킹크랩", "게살"],
+    "게": ["꽃게", "대게", "킹크랩", "게살"],  # "게" 단독 제거 — "게맛살" 등 false positive 위험
     "새우": ["새우", "왕새우", "흰다리새우"],
     "돼지고기": ["돼지고기", "삼겹살", "삼겹", "돼지목살", "돼지등심", "돼지안심", "돼지갈비"],
     "복숭아": ["복숭아"],
     "토마토": ["토마토"],
     "호두": ["호두"],
-    "닭고기": ["닭고기", "닭가슴살", "닭다리", "닭날개", "닭안심", "닭정육"],
-    "쇠고기": ["소고기", "쇠고기", "차돌박이", "우삼겹", "한우", "등심", "안심", "갈비"],
+    # "닭갈비" 같은 합성어가 "갈비"(쇠고기) substring 매칭되지 않도록 닭 패턴을 더 구체화.
+    "닭고기": ["닭고기", "닭가슴살", "닭다리", "닭날개", "닭안심", "닭정육", "닭갈비", "닭갈비살", "닭다리살", "닭봉", "백숙용닭"],
+    # "안심" 단독 제거 — "닭안심"이 닭고기로 분류되어야 하므로 쇠고기 패턴에 단독 substring 금지.
+    "쇠고기": ["소고기", "쇠고기", "차돌박이", "우삼겹", "한우", "쇠갈비", "소갈비", "갈빗살", "LA갈비", "양념갈비살", "갈비찜용", "갈비찜"],
     "오징어": ["오징어", "낙지", "주꾸미", "문어"],
     "조개류(굴, 전복, 홍합 포함)": ["조개", "굴", "전복", "홍합", "바지락"],
     "잣": ["잣"],
@@ -184,13 +187,18 @@ def to_low_calorie(value: str) -> bool:
 def _ingredient_has_allergen(ing: str, patterns: list[str]) -> bool:
     """단일 재료 문자열이 알레르기 패턴 중 하나에 매칭되는지 (false positive 방지).
 
-    1) FALSE_POSITIVE 리스트에 있으면 무조건 미매칭.
-    2) 패턴이 재료에 정확히 포함되어야 함 (substring).
-    code-reviewer HIGH 수정: 단어 경계 정규식까지는 한국어 특성상 어렵지만,
-    명시적 false positive 차단으로 대부분의 오탐 해소.
+    매칭 전략 (우선순위):
+    1) FALSE_POSITIVE 셋에 있으면 무조건 미매칭.
+    2) 정확 일치 (재료명 == 패턴) 또는
+    3) substring 매칭. 단 "닭/돼지" 접두사가 있는 재료는 "쇠고기" 패턴 substring 매칭에서 제외
+       — "닭갈비"가 "갈비"(쇠고기) 패턴에 잡히는 false positive 차단.
     """
     if ing in ALLERGEN_FALSE_POSITIVE_SUBSTRINGS:
         return False
+    # 닭/돼지 접두사 합성어는 쇠고기 패턴(LA갈비/쇠갈비/...)에서 분리.
+    # 패턴 자체가 "쇠/소/한우" 명시이거나 닭/돼지 접두사가 재료에 없으면 substring 매칭 OK.
+    if ing.startswith(("닭", "돼지")):
+        return any(p in ing for p in patterns if p.startswith(("닭", "돼지")))
     return any(p in ing for p in patterns)
 
 
@@ -232,6 +240,12 @@ def row_to_recipe(row: dict) -> RecipeRow | None:
     except ValueError:
         cook_min = 30
 
+    # 알레르기 자동 태깅 — 재료 + 메뉴 이름 양쪽에서 추출 (이름·재료 불일치 보강).
+    # 예: "치즈토마토"의 main_ingredients=["토마토"]만 있어도 name "치즈토마토"에서 "치즈"→우유 태깅.
+    name_allergens = extract_allergens([name])
+    ing_allergens = extract_allergens(whole_ing_norm)
+    allergens_combined = sorted(set(name_allergens + ing_allergens))
+
     return RecipeRow(
         recipe_id=cookid,
         name=name,
@@ -243,7 +257,7 @@ def row_to_recipe(row: dict) -> RecipeRow | None:
         is_low_calorie=to_low_calorie(row.get("low_calorie", "0")),
         country=to_country(row.get("국가 분류", "")),
         theme=to_theme(method_list),
-        allergens=extract_allergens(whole_ing_norm),
+        allergens=allergens_combined,
         image_url=f"/static/recipes/{cookid}.jpg" if (IMG_SRC_DIR / f"{cookid}.jpg").exists() else None,
     )
 

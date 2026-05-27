@@ -78,6 +78,7 @@ async def lifespan(_app: FastAPI):
                     is_low_calorie=row.is_low_calorie,
                     country=row.country, theme=row.theme,
                     allergens=list(row.allergens or []),
+                    image_url=row.image_url,
                 )
                 for row in rows
             ]
