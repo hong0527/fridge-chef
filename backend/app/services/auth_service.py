@@ -59,11 +59,14 @@ async def verify_email(db: AsyncSession, token: str) -> User:
     if user.is_email_verified:
         return user
     expires_at = user.email_verification_token_expires_at
-    if expires_at is None or datetime.now(tz=UTC) > expires_at:
+    if expires_at is None:
+        raise AuthError("인증 토큰이 만료되었습니다.")
+    # SQLite는 DateTime(timezone=True)를 naive datetime으로 반환 — UTC로 강제 해석
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=UTC)
+    if datetime.now(tz=UTC) > expires_at:
         raise AuthError("인증 토큰이 만료되었습니다.")
     user.is_email_verified = True
-    user.email_verification_token = None
-    user.email_verification_token_expires_at = None
     await db.commit()
     await db.refresh(user)
     return user
