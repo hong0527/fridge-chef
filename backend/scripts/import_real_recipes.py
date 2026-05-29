@@ -199,7 +199,8 @@ def _ingredient_has_allergen(ing: str, patterns: list[str]) -> bool:
     # 패턴 자체가 "쇠/소/한우" 명시이거나 닭/돼지 접두사가 재료에 없으면 substring 매칭 OK.
     if ing.startswith(("닭", "돼지")):
         return any(p in ing for p in patterns if p.startswith(("닭", "돼지")))
-    return any(p in ing for p in patterns)
+    # 정확 일치 또는 접두사 매칭만 허용 — 일반 substring 오탐 차단 (e.g. "고구마"→"구마")
+    return any(ing == p or ing.startswith(p) for p in patterns)
 
 
 def extract_allergens(whole_ingredients: list[str]) -> list[str]:
