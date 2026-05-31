@@ -14,6 +14,7 @@ NFR-PERF-003: 추천 응답 ≤10s (단일 모델 기준 < 1s 목표).
 from __future__ import annotations
 
 import math
+import os
 
 from app.core.allergy_map import expand_allergies
 from app.core.config import settings
@@ -95,12 +96,16 @@ def _cosine(a: list[float], b: list[float]) -> float:
 
 
 def _ingredient_overlap_ratio(fridge: set[str], recipe_ings: list[str]) -> float:
-    """냉장고와 레시피 주재료의 매칭 비율 (0~1) — Jaccard-like overlap.
+    """냉장고가 레시피 주재료를 얼마나 보유하는가 — Overlap coefficient (recall-style).
 
-    Aggarwal 2016 §4.5: hard `contains_all` 대신 부분 매칭 허용 (overlap ratio).
+    수식: matched / |recipe_required|
+    Aggarwal 2016 §4.5 Set Similarity 계열. 정확한 Jaccard는 분모가 |A∪B|이지만,
+    본 프로젝트는 "사용자가 레시피 만들 수 있는가" 관점이라 분모를 레시피 재료만 사용.
+
     BASIC_SEASONINGS는 사용자 보유 가정으로 비교에서 제외.
 
-    예: 사용자 7개 재료 + 레시피 주재료 5개 → 3개 매칭이면 3/5 = 0.6
+    예: 사용자 냉장고에 ['양파','마늘','두부'], 레시피 주재료 ['양파','마늘','대파','두부']
+        → 3/4 = 0.75 (사용자가 75% 보유)
     """
     required = [ing for ing in recipe_ings if ing not in BASIC_SEASONINGS]
     if not required:
@@ -149,8 +154,11 @@ def _weighted_match_score(prefs: dict, r: Recipe, max_cook: int, overlap: float)
     )
 
 
-# 부분 매칭 임계값 — 최소 50% 재료 보유 시 후보로 고려 (Aggarwal §4.5 Jaccard threshold).
-_OVERLAP_THRESHOLD = 0.5
+# 부분 매칭 임계값 — env OVERLAP_THRESHOLD로 운영 튜닝 가능 (기본 0.4).
+# 0.4 = 사용자가 레시피 주재료 40% 보유 시 추천 후보. 디저트·음료 등 특수 재료 카테고리에서
+# 사용자 일반 재료로도 일부 매칭 가능하도록 0.5 → 0.4 완화 (Issue #42).
+# Aggarwal 2016 §4.5 overlap coefficient threshold.
+_OVERLAP_THRESHOLD = float(os.environ.get("OVERLAP_THRESHOLD", "0.4"))
 
 
 async def recommend_cold_storage(
