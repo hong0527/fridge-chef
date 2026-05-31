@@ -29,7 +29,7 @@
     "preferences": {"spicy": 1},
     "allergies": ["닭고기"],
     "expect_zero": true,
-    "note": "닭고기 알레르기 - 동의어 정규화 확인"
+    "note": "닭고기 알레르기 - 동의어 정규화 확인 (닭가슴살→닭고기)"
   },
   {
     "id": "golden_005",
@@ -53,7 +53,7 @@
     "preferences": {"spicy": 1},
     "allergies": ["땅콩"],
     "expect_zero": true,
-    "note": "땅콩 알레르기"
+    "note": "땅콩 알레르기 - 땅콩버터샌드 제외"
   },
   {
     "id": "golden_008",
@@ -78,5 +78,329 @@
     "allergies": ["소고기"],
     "expect_zero": true,
     "note": "소고기 알레르기 - 잡채/스테이크 제외"
+  },
+
+  {
+    "id": "golden_011",
+    "fridge": ["밥", "계란"],
+    "preferences": {"spicy": 1},
+    "allergies": [],
+    "expect_zero": false,
+    "note": "GS-003: 알레르기 없음 + 계란밥 재료 → 간장계란밥 추천 가능"
+  },
+  {
+    "id": "golden_012",
+    "fridge": ["두부", "마늘"],
+    "preferences": {"spicy": 2},
+    "allergies": [],
+    "expect_zero": false,
+    "note": "GS-003: 알레르기 없음 + 두부조림 재료 → 추천 비어있지 않음"
+  },
+  {
+    "id": "golden_013",
+    "fridge": ["닭가슴살"],
+    "preferences": {"spicy": 1},
+    "allergies": [],
+    "expect_zero": false,
+    "note": "GS-003: 알레르기 없음 + 닭가슴살구이 재료 → 추천 비어있지 않음"
+  },
+  {
+    "id": "golden_014",
+    "fridge": ["면", "치즈", "마늘"],
+    "preferences": {"spicy": 1},
+    "allergies": [],
+    "expect_zero": false,
+    "note": "GS-003: 알레르기 없음 + 파스타 재료 → 추천 비어있지 않음"
+  },
+  {
+    "id": "golden_015",
+    "fridge": ["양파", "버섯", "당근"],
+    "preferences": {"spicy": 1},
+    "allergies": [],
+    "expect_zero": false,
+    "note": "GS-003: 알레르기 없음 + 야채볶음 재료 → 추천 비어있지 않음"
+  },
+  {
+    "id": "golden_016",
+    "fridge": ["조개", "마늘", "대파"],
+    "preferences": {"spicy": 1},
+    "allergies": [],
+    "expect_zero": false,
+    "note": "GS-003: 알레르기 없음 + 조개탕 재료 → 추천 비어있지 않음"
+  },
+  {
+    "id": "golden_017",
+    "fridge": ["빵", "땅콩"],
+    "preferences": {"spicy": 1},
+    "allergies": [],
+    "expect_zero": false,
+    "note": "GS-003: 알레르기 없음 + 땅콩버터샌드 재료 → 추천 비어있지 않음"
+  },
+  {
+    "id": "golden_018",
+    "fridge": ["밥", "계란", "두부", "마늘"],
+    "preferences": {"spicy": 1},
+    "allergies": [],
+    "expect_zero": false,
+    "note": "GS-003: 알레르기 없음 + 복합재료 → 계란밥·두부조림 모두 추천 가능"
+  },
+  {
+    "id": "golden_019",
+    "fridge": ["양파", "버섯", "당근", "조개", "마늘", "대파"],
+    "preferences": {"spicy": 1},
+    "allergies": [],
+    "expect_zero": false,
+    "note": "GS-003: 알레르기 없음 + 복합재료 → 야채볶음·조개탕 추천 가능"
+  },
+  {
+    "id": "golden_020",
+    "fridge": ["닭가슴살", "면", "치즈", "마늘"],
+    "preferences": {"spicy": 1},
+    "allergies": [],
+    "expect_zero": false,
+    "note": "GS-003: 알레르기 없음 + 복합재료 → 닭가슴살구이·파스타 추천 가능"
+  },
+
+  {
+    "id": "golden_021",
+    "fridge": ["닭갈비"],
+    "preferences": {"spicy": 3},
+    "allergies": ["발"],
+    "expect_zero": false,
+    "note": "GS-001 b4da656: 닭갈비 재료 + 발 알레르기 → 발은 식품 알레르겐 아님, 닭갈비 레시피 차단 안 함 (mini-repo 미매칭으로 결과 없음 — 전체 시드 기준 회귀용)"
+  },
+  {
+    "id": "golden_022",
+    "fridge": ["땅콩버터"],
+    "preferences": {"spicy": 1},
+    "allergies": ["땅콩"],
+    "expect_zero": true,
+    "note": "GS-001 b4da656: 땅콩버터 재료 + 땅콩 알레르기 → 땅콩 포함 레시피 제외 (mini-repo 미매칭 — 전체 시드 기준 회귀용)"
+  },
+  {
+    "id": "golden_023",
+    "fridge": ["닭가슴살"],
+    "preferences": {"spicy": 1},
+    "allergies": ["발"],
+    "expect_zero": false,
+    "note": "GS-001 b4da656 닭갈비 유사: 발 알레르기는 닭고기 allergen 레시피(닭가슴살구이) 차단 안 함"
+  },
+  {
+    "id": "golden_024",
+    "fridge": ["닭가슴살"],
+    "preferences": {"spicy": 1},
+    "allergies": ["소고기"],
+    "expect_zero": false,
+    "note": "GS-001: 소고기 알레르기 ≠ 닭고기 allergen — 닭가슴살구이 false positive 차단 방지"
+  },
+  {
+    "id": "golden_025",
+    "fridge": ["두부", "마늘"],
+    "preferences": {"spicy": 2},
+    "allergies": ["계란"],
+    "expect_zero": false,
+    "note": "GS-001: 계란 알레르기는 대두 allergen 레시피(두부조림) 차단 안 함"
+  },
+  {
+    "id": "golden_026",
+    "fridge": ["밥", "계란"],
+    "preferences": {"spicy": 1},
+    "allergies": ["대두"],
+    "expect_zero": false,
+    "note": "GS-001: 대두 알레르기는 계란 allergen 레시피(간장계란밥) 차단 안 함"
+  },
+  {
+    "id": "golden_027",
+    "fridge": ["면", "치즈", "마늘"],
+    "preferences": {"spicy": 1},
+    "allergies": ["계란"],
+    "expect_zero": false,
+    "note": "GS-001: 계란 알레르기는 밀+우유 allergen 레시피(파스타) 차단 안 함"
+  },
+  {
+    "id": "golden_028",
+    "fridge": ["양파", "버섯", "당근"],
+    "preferences": {"spicy": 1},
+    "allergies": ["닭고기"],
+    "expect_zero": false,
+    "note": "GS-001: 닭고기 알레르기는 allergen 없는 야채볶음 차단 안 함"
+  },
+  {
+    "id": "golden_029",
+    "fridge": ["조개", "마늘", "대파"],
+    "preferences": {"spicy": 1},
+    "allergies": ["땅콩"],
+    "expect_zero": false,
+    "note": "GS-001: 땅콩 알레르기는 조개 allergen 레시피(조개탕) 차단 안 함"
+  },
+  {
+    "id": "golden_030",
+    "fridge": ["빵", "땅콩"],
+    "preferences": {"spicy": 1},
+    "allergies": ["대두"],
+    "expect_zero": false,
+    "note": "GS-001 b4da656 땅콩: 대두 알레르기는 땅콩+밀 allergen 레시피(땅콩버터샌드) 차단 안 함"
+  },
+
+  {
+    "id": "golden_031",
+    "fridge": ["밥", "계란", "두부", "마늘"],
+    "preferences": {"spicy": 1},
+    "allergies": ["계란", "대두"],
+    "expect_zero": true,
+    "note": "GS-002: 계란+대두 복합 알레르기 → 간장계란밥·두부조림 모두 제외"
+  },
+  {
+    "id": "golden_032",
+    "fridge": ["밥", "계란", "두부", "마늘", "양파", "버섯", "당근"],
+    "preferences": {"spicy": 1},
+    "allergies": ["계란", "대두"],
+    "expect_zero": false,
+    "note": "GS-002: 계란+대두 복합 알레르기에도 allergen 없는 야채볶음 추천 가능"
+  },
+  {
+    "id": "golden_033",
+    "fridge": ["닭가슴살", "면", "치즈", "마늘"],
+    "preferences": {"spicy": 1},
+    "allergies": ["닭고기", "밀"],
+    "expect_zero": true,
+    "note": "GS-002: 닭고기+밀 복합 알레르기 → 닭가슴살구이·파스타 모두 제외"
+  },
+  {
+    "id": "golden_034",
+    "fridge": ["두부", "마늘", "면", "치즈"],
+    "preferences": {"spicy": 1},
+    "allergies": ["대두", "우유"],
+    "expect_zero": true,
+    "note": "GS-002: 대두+우유 복합 알레르기 → 두부조림·파스타 모두 제외"
+  },
+  {
+    "id": "golden_035",
+    "fridge": ["빵", "땅콩", "면", "치즈", "마늘"],
+    "preferences": {"spicy": 1},
+    "allergies": ["땅콩", "밀"],
+    "expect_zero": true,
+    "note": "GS-002: 땅콩+밀 복합 알레르기 → 땅콩버터샌드·파스타 모두 제외"
+  },
+  {
+    "id": "golden_036",
+    "fridge": ["조개", "마늘", "대파", "밥", "계란"],
+    "preferences": {"spicy": 1},
+    "allergies": ["조개", "계란"],
+    "expect_zero": true,
+    "note": "GS-002: 조개+계란 복합 알레르기 → 조개탕·간장계란밥 모두 제외"
+  },
+  {
+    "id": "golden_037",
+    "fridge": ["밥", "계란", "두부", "마늘", "면", "치즈"],
+    "preferences": {"spicy": 1},
+    "allergies": ["계란", "대두", "밀"],
+    "expect_zero": true,
+    "note": "GS-002: 계란+대두+밀 세 가지 복합 알레르기 → 연관 레시피 모두 제외"
+  },
+  {
+    "id": "golden_038",
+    "fridge": ["밥", "계란", "두부", "마늘", "양파", "버섯", "당근", "조개", "대파"],
+    "preferences": {"spicy": 1},
+    "allergies": ["계란", "대두", "조개"],
+    "expect_zero": false,
+    "note": "GS-002: 계란+대두+조개 복합 알레르기에도 allergen 없는 야채볶음 추천 가능"
+  },
+  {
+    "id": "golden_039",
+    "fridge": ["닭가슴살", "양파", "버섯", "당근"],
+    "preferences": {"spicy": 1},
+    "allergies": ["닭고기"],
+    "expect_zero": false,
+    "note": "GS-002: 닭고기 알레르기 → 닭가슴살구이 제외, allergen 없는 야채볶음 추천 가능"
+  },
+  {
+    "id": "golden_040",
+    "fridge": ["빵", "땅콩", "양파", "버섯", "당근"],
+    "preferences": {"spicy": 1},
+    "allergies": ["땅콩", "밀"],
+    "expect_zero": false,
+    "note": "GS-002: 땅콩+밀 알레르기 → 땅콩버터샌드 제외, allergen 없는 야채볶음 추천 가능"
+  },
+
+  {
+    "id": "golden_041",
+    "fridge": ["밥", "계란"],
+    "preferences": {"spicy": 1},
+    "allergies": ["달걀"],
+    "expect_zero": true,
+    "note": "정규화 회귀: 달걀→계란 synonym_map 변환 후 간장계란밥 allergen 차단 — normalize_list 검증"
+  },
+  {
+    "id": "golden_042",
+    "fridge": ["밥", "계란", "조개", "마늘", "대파"],
+    "preferences": {"spicy": 1},
+    "allergies": ["계란"],
+    "expect_zero": false,
+    "note": "계란 알레르기 → 간장계란밥 제외, allergen이 다른 조개탕 추천 가능"
+  },
+  {
+    "id": "golden_043",
+    "fridge": ["두부", "마늘", "빵", "땅콩"],
+    "preferences": {"spicy": 1},
+    "allergies": ["대두"],
+    "expect_zero": false,
+    "note": "대두 알레르기 → 두부조림 제외, allergen이 다른 땅콩버터샌드 추천 가능"
+  },
+  {
+    "id": "golden_044",
+    "fridge": ["밥", "계란", "빵", "땅콩"],
+    "preferences": {"spicy": 1},
+    "allergies": ["계란"],
+    "expect_zero": false,
+    "note": "계란 알레르기 → 간장계란밥 제외, allergen이 다른 땅콩버터샌드 추천 가능"
+  },
+  {
+    "id": "golden_045",
+    "fridge": ["닭가슴살", "면", "치즈", "마늘", "빵", "땅콩"],
+    "preferences": {"spicy": 1},
+    "allergies": ["밀"],
+    "expect_zero": false,
+    "note": "밀 알레르기 → 파스타·땅콩버터샌드 제외, allergen이 다른 닭가슴살구이 추천 가능"
+  },
+  {
+    "id": "golden_046",
+    "fridge": ["닭가슴살", "면", "치즈", "마늘", "양파", "버섯", "당근"],
+    "preferences": {"spicy": 1},
+    "allergies": ["닭고기", "우유"],
+    "expect_zero": false,
+    "note": "GS-002: 닭고기+우유 알레르기 → 닭가슴살구이·파스타 제외, allergen 없는 야채볶음 추천 가능"
+  },
+  {
+    "id": "golden_047",
+    "fridge": ["밥", "계란"],
+    "preferences": {"spicy": 1},
+    "allergies": ["새우", "게"],
+    "expect_zero": false,
+    "note": "해산물 알레르기는 계란 allergen 레시피(간장계란밥) 차단 안 함 — 알레르겐 종류 격리"
+  },
+  {
+    "id": "golden_048",
+    "fridge": ["조개", "마늘", "대파"],
+    "preferences": {"spicy": 1},
+    "allergies": ["새우"],
+    "expect_zero": false,
+    "note": "새우 알레르기 ≠ 조개 allergen — 조개탕 false positive 차단 방지 (해산물 종류 격리)"
+  },
+  {
+    "id": "golden_049",
+    "fridge": ["닭가슴살", "두부", "마늘"],
+    "preferences": {"spicy": 1},
+    "allergies": ["닭고기", "대두"],
+    "expect_zero": true,
+    "note": "GS-002: 닭고기+대두 복합 알레르기 → 닭가슴살구이·두부조림 모두 제외"
+  },
+  {
+    "id": "golden_050",
+    "fridge": ["닭가슴살", "두부", "마늘", "양파", "버섯", "당근"],
+    "preferences": {"spicy": 1},
+    "allergies": ["닭고기", "대두"],
+    "expect_zero": false,
+    "note": "GS-002: 닭고기+대두 복합 알레르기에도 allergen 없는 야채볶음 추천 가능"
   }
 ]
