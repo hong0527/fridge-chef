@@ -1,11 +1,18 @@
-"""모델 A diff_bonus 점수 계산 테스트 (MA-NEW-001~004).
+"""모델 A 난이도 매칭 점수 테스트 (MA-NEW-001~004).
 
-- NFR-PERF-002: 모델 A 추천 결과 정확성 (diff_bonus 랭킹 로직 회귀 방지)
+- NFR-PERF-002: 모델 A 추천 결과 정확성 (난이도 매칭 회귀 방지)
 
-907de6a 커밋에서 추가된 난이도 일치 보너스 점수 회귀 방지.
+PR #38 이후 score 함수는 가중합 (Aggarwal 2016 §4.4):
+  score = 0.25*country + 0.20*theme + 0.18*diff_match + 0.12*spicy_match
+        + 0.10*diet_match + 0.15*cook_norm
+  diff_match = 1 - |r.difficulty_level - pref| / 2
 
-공식: diff_bonus = max(0.0, 0.15 - 0.075 × |recipe.difficulty_level - pref_difficulty|)
-  차이=0 → 0.15 / 차이=1 → 0.075 / 차이≥2 → 0.0
+난이도 매칭 기여:
+  차이=0 → diff_match=1.0 → score 기여 +0.18
+  차이=1 → diff_match=0.5 → score 기여 +0.09
+  차이=2 → diff_match=0.0 → score 기여 +0.00
+
+(이전 PR #32의 diff_bonus +0.15/+0.075/0.0 공식은 PR #38에서 가중합으로 통합됨.)
 """
 
 from __future__ import annotations
@@ -30,18 +37,20 @@ _PREFS = {
 }
 _FRIDGE = ["두부"]
 
-# 코사인 기준값
-# 모든 5차원 일치(diff_match=1): cosine([1,1,1,1,1], [1,1,1,1,1]) = 1.0
-_BASE_COSINE_MATCH = 1.0
-# diff_match=0, 나머지 4차원 일치: cosine([1,0,1,1,1], [1,1,1,1,1]) = 4/(2*√5) = 2/√5
-_BASE_COSINE_MISMATCH = 2.0 / math.sqrt(5.0)
+# 가중합 기준값 (cook_norm은 cook_min=10, max_cook=60 기준 1 - 10/60 ≈ 0.833):
+#   완전 일치 baseline = 0.25 + 0.20 + 0.18*diff_match + 0.12*spicy_match
+#                     + 0.10*diet_match + 0.15*cook_norm
+# country/theme/spicy/diet/cook 고정 → diff_match만 차이.
+# spicy 완전 일치 → spicy_match=1.0 → 0.12 기여
+# diet=False · is_low_calorie=False → diet_match=1.0 → 0.10 기여
+_BASE_FIXED = 0.25 + 0.20 + 0.12 + 0.10 + 0.15 * (1.0 - 10 / 60)  # ≈ 0.7950
 
 
 @pytest.fixture
 def diff_bonus_repo() -> RecipeRepository:
-    """diff_bonus 격리용 미니 카탈로그.
+    """난이도 격리용 미니 카탈로그.
 
-    spicy/country/theme/diet 완전 일치, difficulty_level만 1·2·3으로 다름.
+    spicy/country/theme/diet/cook_min 완전 일치, difficulty_level만 1·2·3으로 다름.
     동일 재료(두부)로 contains_all 필터를 모두 통과.
     """
     ings = normalize_list(["두부"])
@@ -62,15 +71,12 @@ def _score_for(results: list[dict], recipe_id: str) -> float:
     raise KeyError(f"{recipe_id} not found in results")
 
 
-class TestDiffBonusCalculation:
-    """MA-NEW-001~003: diff_bonus 수식 정확성 검증."""
+class TestDiffMatchContribution:
+    """MA-NEW-001~003: 가중합에서 difficulty match 기여 검증 (PR #38 공식)."""
 
     @pytest.mark.asyncio
-    async def test_ma_new_001_diff_bonus_exact_match(self, diff_bonus_repo) -> None:
-        """MA-NEW-001 — 난이도 완전 일치(차이=0): diff_bonus == 0.15.
-
-        사용자 초보(1) + 레시피 초보(1): 코사인=1.0, diff_bonus=0.15 → score=1.15.
-        """
+    async def test_ma_new_001_diff_exact_match_full_score(self, diff_bonus_repo) -> None:
+        """MA-NEW-001 — 난이도 완전 일치(차이=0): diff 기여 = 0.18 (=0.18 * 1.0)."""
         out = await recommend_cold_storage(
             fridge_ingredients=_FRIDGE,
             preferences=_PREFS,
@@ -78,17 +84,14 @@ class TestDiffBonusCalculation:
             repo=diff_bonus_repo,
         )
         score = _score_for(out, "db001")
-        diff_bonus = score - _BASE_COSINE_MATCH
-        assert math.isclose(diff_bonus, 0.15, abs_tol=1e-3), (
-            f"diff_bonus(차이=0) 기대 0.15, 실제 {diff_bonus:.4f}"
+        diff_contribution = score - _BASE_FIXED
+        assert math.isclose(diff_contribution, 0.18, abs_tol=1e-3), (
+            f"diff_match(차이=0) 기여 기대 0.18, 실제 {diff_contribution:.4f}"
         )
 
     @pytest.mark.asyncio
-    async def test_ma_new_002_diff_bonus_one_step(self, diff_bonus_repo) -> None:
-        """MA-NEW-002 — 난이도 1단계 차이: diff_bonus == 0.075.
-
-        사용자 초보(1) + 레시피 중급(2): 코사인=2/√5, diff_bonus=0.075.
-        """
+    async def test_ma_new_002_diff_one_step_half_score(self, diff_bonus_repo) -> None:
+        """MA-NEW-002 — 난이도 1단계 차이: diff 기여 = 0.09 (=0.18 * 0.5)."""
         out = await recommend_cold_storage(
             fridge_ingredients=_FRIDGE,
             preferences=_PREFS,
@@ -96,17 +99,14 @@ class TestDiffBonusCalculation:
             repo=diff_bonus_repo,
         )
         score = _score_for(out, "db002")
-        diff_bonus = score - _BASE_COSINE_MISMATCH
-        assert math.isclose(diff_bonus, 0.075, abs_tol=1e-3), (
-            f"diff_bonus(차이=1) 기대 0.075, 실제 {diff_bonus:.4f}"
+        diff_contribution = score - _BASE_FIXED
+        assert math.isclose(diff_contribution, 0.09, abs_tol=1e-3), (
+            f"diff_match(차이=1) 기여 기대 0.09, 실제 {diff_contribution:.4f}"
         )
 
     @pytest.mark.asyncio
-    async def test_ma_new_003_diff_bonus_two_or_more_steps(self, diff_bonus_repo) -> None:
-        """MA-NEW-003 — 난이도 2단계 이상 차이: diff_bonus == 0.0.
-
-        사용자 초보(1) + 레시피 고급(3): 코사인=2/√5, diff_bonus=max(0, 0.15-0.15)=0.0.
-        """
+    async def test_ma_new_003_diff_two_steps_zero_score(self, diff_bonus_repo) -> None:
+        """MA-NEW-003 — 난이도 2단계 이상 차이: diff 기여 = 0.00 (=0.18 * 0.0)."""
         out = await recommend_cold_storage(
             fridge_ingredients=_FRIDGE,
             preferences=_PREFS,
@@ -114,9 +114,9 @@ class TestDiffBonusCalculation:
             repo=diff_bonus_repo,
         )
         score = _score_for(out, "db003")
-        diff_bonus = score - _BASE_COSINE_MISMATCH
-        assert math.isclose(diff_bonus, 0.0, abs_tol=1e-3), (
-            f"diff_bonus(차이≥2) 기대 0.0, 실제 {diff_bonus:.4f}"
+        diff_contribution = score - _BASE_FIXED
+        assert math.isclose(diff_contribution, 0.00, abs_tol=1e-3), (
+            f"diff_match(차이=2) 기여 기대 0.00, 실제 {diff_contribution:.4f}"
         )
 
 
