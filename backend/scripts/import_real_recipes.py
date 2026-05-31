@@ -57,10 +57,12 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # no
 from app.core.synonym_map import normalize_list  # noqa: E402
 from app.models.orm import RecipeRow  # noqa: E402
 
-# ─── 경로 ────────────────────────────────────────────────────
-PROJECT_ROOT = Path("/Users/honghwasu/softwareTeamProject")
-CSV_PATH = PROJECT_ROOT / "preprocessed_recipe (1).csv"
-IMG_SRC_DIR = PROJECT_ROOT / "images"
+# ─── 경로 (환경변수로 외부 데이터셋 위치 주입 가능) ──────────
+# 기본값: 저장소 루트(`backend/..`)에 형제로 놓인 data/ 디렉토리.
+# 다른 환경에서는 `RECIPE_CSV_PATH`, `RECIPE_IMG_DIR` env로 오버라이드.
+_REPO_ROOT = _BACKEND_DIR.parent
+CSV_PATH = Path(os.environ.get("RECIPE_CSV_PATH", str(_REPO_ROOT / "data" / "preprocessed_recipe.csv")))
+IMG_SRC_DIR = Path(os.environ.get("RECIPE_IMG_DIR", str(_REPO_ROOT / "data" / "images")))
 IMG_DST_DIR = _BACKEND_DIR / "data" / "recipes_images"
 
 # ─── 매핑 테이블 ─────────────────────────────────────────────
