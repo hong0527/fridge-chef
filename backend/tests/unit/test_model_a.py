@@ -17,12 +17,17 @@ import math
 import pytest
 
 from app.services.model_a import (
-    _contains_all,
     _cosine,
+    _ingredient_overlap_ratio,
     _vec_from_prefs,
     _vec_from_recipe,
     recommend_cold_storage,
 )
+
+
+def _contains_all(fridge: set[str], recipe_ings: list[str]) -> bool:
+    """기존 hard filter 호환 — PR #40 이후 overlap_ratio=1.0과 동치."""
+    return _ingredient_overlap_ratio(fridge, recipe_ings) == 1.0
 
 # ─────────────────────────────────────────────────────────────
 _KR_MAIN_PREFS = {"country": "한식", "food_type": "메인요리"}

@@ -100,7 +100,12 @@ async def test_scenario_b_milk_allergy_blocks_cheese_recipes(
 
 @pytest.mark.asyncio
 async def test_scenario_c_beginner_easy_recipes_only(mock_gemini_fail: Any) -> None:
-    """난이도 '초보' 선호 + max_cook_min=20 → 결과의 difficulty_level<=2."""
+    """난이도 '초보' 선호 + max_cook_min=20 → Top-5의 difficulty_level <=2 비율 ≥ 60%.
+
+    PR #40 Stratified retrieval로 country+theme+diff 일치 → 일치 country만 → base pool
+    순으로 fallback이 있어 후순위에 diff=3 일부 포함 가능. 가중합 score가 일치 후보를
+    상위에 두므로 Top-5의 60% 이상은 diff <= 2 보장.
+    """
     repo = get_repository()
     prefs = {**_BASE_PREFS, "difficulty": "초보", "max_cook_min": 20, "diet": True}
     result = await recommend_dual(
@@ -110,11 +115,13 @@ async def test_scenario_c_beginner_easy_recipes_only(mock_gemini_fail: Any) -> N
         user_context="",
         repo=repo,
     )
-    for r in result["model_a"]:
-        # ModelACandidate에 difficulty_level 포함
-        assert r["difficulty_level"] <= 2, (
-            f"초보 선호인데 고급(diff=3) 추천: {r['recipe_id']}"
-        )
+    top5 = result["model_a"][:5]
+    if not top5:
+        pytest.skip("contains_all 통과 후보 부족 (SEED 35건 한계)")
+    easy_count = sum(1 for r in top5 if r["difficulty_level"] <= 2)
+    assert easy_count >= len(top5) * 0.6, (
+        f"Top-{len(top5)} 중 초보·중급 {easy_count}건 < 60% — stratified 미작동"
+    )
 
 
 # ────────────────────────────────────────────────────────────────
