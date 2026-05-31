@@ -63,17 +63,23 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
 @pytest_asyncio.fixture(scope="function")
 async def db_engine():  # type: ignore[no-untyped-def]
-    """함수 스코프 SQLite-인메모리 엔진 + 테이블 생성/해제."""
+    """함수 스코프 DB 엔진 + 테이블 생성/해제.
+
+    DATABASE_URL 환경변수 기준으로 SQLite(로컬) 또는 PostgreSQL(CI) 자동 선택.
+    """
     from sqlalchemy.ext.asyncio import create_async_engine
 
     from app.core.db import Base
     from app.models import orm as _orm  # noqa: F401 — 모델 import 유도
 
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        future=True,
-    )
+    db_url = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+    is_sqlite = db_url.startswith("sqlite")
+
+    kwargs: dict = {"future": True}
+    if is_sqlite:
+        kwargs["connect_args"] = {"check_same_thread": False}
+
+    engine = create_async_engine(db_url, **kwargs)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
