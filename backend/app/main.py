@@ -137,9 +137,19 @@ if _STATIC_RECIPES_DIR.is_dir():
 
 
 @app.get("/health", tags=["meta"])
-async def health() -> dict[str, str]:
-    """NFR-OPS-001 — 헬스체크 (CI·로드밸런서용)."""
-    return {"status": "ok", "version": __version__}
+async def health() -> dict[str, object]:
+    """NFR-OPS-001 — 헬스체크 + 추천 카탈로그 자가 진단.
+
+    recipe_count로 lifespan silent fallback 즉시 감지:
+    - 1667+ = ETL 적재 정상
+    - 35 = SEED fallback (DB 연결·로드 실패)
+    """
+    from app.models.recipe_repository import get_repository
+    return {
+        "status": "ok",
+        "version": __version__,
+        "recipe_count": len(get_repository().list_all()),
+    }
 
 
 @app.get("/", tags=["meta"])

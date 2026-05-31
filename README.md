@@ -50,6 +50,30 @@ docker-compose up --build
 # Mailpit: http://localhost:8025  ← 이메일 인증 메일 확인
 ```
 
+### 3-1. 대규모 레시피 데이터셋 적재 (1667건 + 이미지 1667장)
+기본 부팅 시 DB에는 SEED 35건만 들어있습니다.
+실제 시연·평가용 데이터셋(1667 레시피 + 이미지)은 별도 ETL로 적재해야 합니다.
+
+```bash
+# 1) 데이터셋 위치 지정 (env 또는 기본 경로 사용)
+export RECIPE_CSV_PATH=/path/to/preprocessed_recipe.csv
+export RECIPE_IMG_DIR=/path/to/images
+# 기본값 사용 시: <repo>/data/preprocessed_recipe.csv, <repo>/data/images/
+
+# 2) ETL 실행 (DB 적재 + 이미지 복사 + 인덱스 생성)
+cd backend
+python scripts/import_real_recipes.py
+
+# 3) 백엔드 재기동으로 인메모리 repo 갱신
+docker-compose restart backend
+
+# 4) 적재 확인 (recipe_count=1667+ 이어야 정상)
+curl http://localhost:8000/health
+```
+
+> **주의**: CSV·이미지 원본은 저장소(.gitignore)에 포함되지 않습니다.
+> 학부 평가용 데이터셋 파일은 팀 공유 드라이브에서 받으세요.
+
 ### 이메일 인증 (로컬)
 회원가입 시 인증 메일이 **Mailpit**(로컬 메일 캐처)으로 발송됩니다.
 `http://localhost:8025` 에서 메일을 확인하고 인증 링크를 클릭하면 로그인 가능합니다.
