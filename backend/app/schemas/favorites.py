@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel
 
@@ -14,7 +13,7 @@ class FavoriteItem(BaseModel):
     difficulty_level: int
     country: str
     theme: str
-    image_url: Optional[str]
+    image_url: str | None
     favorited_at: datetime
 
 

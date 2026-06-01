@@ -9,8 +9,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from app.models.orm import RecipeRow
 
 _RECIPE_ID = "test-recipe-001"
@@ -165,6 +163,7 @@ class TestFavoritesEdgeCases:
     ) -> None:
         """다른 사용자의 즐겨찾기는 보이지 않음 — 사용자 격리."""
         from sqlalchemy import update
+
         from app.models.orm import User
 
         headers = {"Authorization": test_jwt_token["Authorization"]}
@@ -196,6 +195,7 @@ class TestFavoritesEdgeCases:
     ) -> None:
         """다른 사용자가 내 즐겨찾기 삭제 시도 → 404."""
         from sqlalchemy import update
+
         from app.models.orm import User
 
         headers = {"Authorization": test_jwt_token["Authorization"]}

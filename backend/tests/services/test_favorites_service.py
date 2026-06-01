@@ -71,8 +71,6 @@ class TestAddFavorite:
         user = await _insert_user(db_session, "c@test.com")
         await favorites_service.add_favorite(db_session, user.id, "recipe-001")
         await favorites_service.add_favorite(db_session, user.id, "recipe-001")
-        rows = await favorites_service.list_for_user(db_session, user.id)
-        # list_for_user는 JOIN이라 recipe 없으면 빈 리스트지만 is_favorite으로 확인
         is_fav = await favorites_service.is_favorite(db_session, user.id, "recipe-001")
         assert is_fav is True
 
