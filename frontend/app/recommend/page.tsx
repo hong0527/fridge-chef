@@ -27,8 +27,19 @@ export default function RecommendPage() {
   // Browser setInterval 반환은 number — @types/node 의 NodeJS.Timeout 와 혼동 방지
   const progressIntervalRef = useRef<number | null>(null);
 
-  // 컴포넌트 언마운트 시 in-flight interval cleanup (memory leak 방지)
+  // 마운트 시: sessionStorage 에서 직전 추천 결과 복원
+  // (메뉴 상세 → 뒤로가기 시 결과 화면 유지 — 사용자 시연 피드백).
   useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('recommend_result');
+      if (saved) {
+        const parsed = JSON.parse(saved) as RecommendResponse;
+        setResult(parsed);
+        setPhase('result');
+      }
+    } catch {
+      // 손상된 JSON 은 무시하고 wizard 진입
+    }
     return () => {
       if (progressIntervalRef.current !== null) {
         window.clearInterval(progressIntervalRef.current);
@@ -36,6 +47,17 @@ export default function RecommendPage() {
       }
     };
   }, []);
+
+  // 결과 변경 시 sessionStorage 동기화 (탭 닫으면 자동 정리되는 휘발성 스토어).
+  useEffect(() => {
+    if (result) {
+      try {
+        sessionStorage.setItem('recommend_result', JSON.stringify(result));
+      } catch {
+        // quota / private 모드 무시
+      }
+    }
+  }, [result]);
 
   const handleSubmit = async (prefs: Preferences) => {
     setPhase('loading');

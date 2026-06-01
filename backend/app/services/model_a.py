@@ -201,7 +201,9 @@ async def recommend_cold_storage(
 
     selected: list[tuple[Recipe, float]] = []
     seen_ids: set[str] = set()
-    for tier in (tier1, tier2, tier3, base_pool):
+    # base_pool 폴백 제거 — "중식 선택했는데 일식 나옴" 사용자 침묵 위반 차단(CRITICAL #C2).
+    # tier3까지 = 사용자 country 일치 강제. 후보 부족하면 빈 결과 반환이 더 정직.
+    for tier in (tier1, tier2, tier3):
         for r, o in tier:
             if r.recipe_id not in seen_ids:
                 selected.append((r, o))
