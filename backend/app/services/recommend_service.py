@@ -65,4 +65,9 @@ async def recommend_dual(
         _safe_run("model_a", _run_a(), settings.recommend_timeout_s),
         _safe_run("model_b", _run_b(), settings.recommend_timeout_s),
     )
+    # CRITICAL #C6 — model_a/b 추천 결과 중복 차단 ('왜 같은 메뉴 두 번?' UX).
+    # SDD §3.2 model_b 정의는 '부족재료 추천'이므로 model_a(냉털)와 같은 후보가 양쪽에
+    # 동시에 추천되면 사용자는 차별성을 못 느낀다. model_a 우선, model_b 제외.
+    a_ids = {r["recipe_id"] for r in model_a}
+    model_b = [r for r in model_b if r["recipe_id"] not in a_ids]
     return {"model_a": model_a, "model_b": model_b}

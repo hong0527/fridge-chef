@@ -11,7 +11,8 @@ class Preferences(BaseModel):
     spicy: int = Field(default=3, ge=1, le=5, description="맵기 1–5")
     difficulty: str = Field(default="초보", description="초보|중급|고급")
     diet: bool = Field(default=False, description="저칼로리 우선")
-    use_saved_allergies: bool = Field(default=True, description="저장 알레르기 사용 토글 (FR-007)")
+    # NFR-EVAL-001 안전 정책 — 저장 알레르기는 항상 적용. 토글로 우회 불가.
+    # (기존 use_saved_allergies 필드는 코드와 모순되어 제거: 토글로 알레르기 노출 위험 차단)
     food_type: str = Field(default="메인요리", description="메인요리|반찬|국물|디저트|음료")
     country: str = Field(default="한식", description="한식|중식|일식|양식|기타")
     max_cook_min: int = Field(default=60, ge=1, le=600, description="최대 조리시간")

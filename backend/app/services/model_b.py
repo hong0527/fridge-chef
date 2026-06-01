@@ -68,12 +68,29 @@ async def recommend_missing_ingredients(
     pref_vec = _vec_from_prefs(preferences)
     top_k_pre = settings.top_k_model_b_pre
 
+    # 사용자 선호 hard filter — model_a와 동일 정책 적용. country/theme 부재로
+    # '중식 요청에 한식 model_b 결과' 노출되던 시연 결함(tracer 발견) 차단.
+    from app.services.model_a import _COUNTRY_MAP, _DIFFICULTY_MAP, _THEME_MAP
+    s_pref_int = int(preferences.get("spicy", 3))
+    d_pref_int = _DIFFICULTY_MAP.get(str(preferences.get("difficulty", "초보")), 1)
+    c_pref = _COUNTRY_MAP.get(str(preferences.get("country", "한식")), "kr")
+    t_pref = _THEME_MAP.get(str(preferences.get("food_type", "메인요리")), "main")
+    spicy_tol_b = 1 if s_pref_int <= 2 else 2
+
     candidates: list[tuple[float, Recipe, list[str], list[str]]] = []
     for r in repo.list_all():
-        # 2단계: 알레르기 + 조리시간
+        # 2단계: 알레르기 + 조리시간 + 매운맛 + 난이도 + country + theme
         if allergies and any(a in allergies for a in r.allergens):
             continue
         if r.cook_min > max_cook:
+            continue
+        if abs(r.spicy - s_pref_int) > spicy_tol_b:
+            continue
+        if abs(r.difficulty_level - d_pref_int) > 1:
+            continue
+        if r.country != c_pref:
+            continue
+        if r.theme != t_pref:
             continue
         # 3단계: 보유/부족 분류
         have, missing = _analyze_ingredients(fridge_norm, r.whole_ingredients)
