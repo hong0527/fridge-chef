@@ -1,0 +1,15 @@
+# 운영 배포 전용 오버라이드
+# 사용법: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+services:
+  backend:
+    environment:
+      SMTP_HOST: ${SMTP_HOST:?SMTP_HOST 필수}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:?SMTP_USER 필수}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:?SMTP_PASSWORD 필수}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS 필수 (운영 도메인)}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL 필수 (운영 도메인)}
+
+  frontend:
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL 필수 (운영 API 도메인)}

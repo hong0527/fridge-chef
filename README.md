@@ -38,19 +38,32 @@
 
 ### 2. 환경변수 설정
 ```bash
-cp .env.example .env
-# .env 파일을 열어 GEMINI_API_KEY, JWT_SECRET 등을 채워주세요
+cp .env.local.example .env
+# .env 파일을 열어 GEMINI_API_KEY, JWT_SECRET 을 채워주세요
 ```
 
-### 3. 전체 스택 실행 (권장)
+### 3. 전체 스택 실행 (로컬)
 ```bash
-docker-compose up --build
+docker compose up --build
 # 백엔드:  http://localhost:8000/docs
 # 프론트:  http://localhost:3000
 # Mailpit: http://localhost:8025  ← 이메일 인증 메일 확인
 ```
 
-### 3-1. 대규모 레시피 데이터셋 적재 (1667건 + 이미지 1667장)
+> `docker-compose.override.yml` 이 자동 적용되어 Mailpit이 함께 실행됩니다.
+
+### 3-1. 운영 서버 배포 (VPS)
+```bash
+cp .env.prod.example .env
+# .env 파일에서 JWT_SECRET, SMTP_*, CORS_ORIGINS, FRONTEND_URL 등 실제 값 채우기
+
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+> 운영 환경에서는 `docker-compose.override.yml` 이 적용되지 않으므로 Mailpit이 실행되지 않습니다.
+> 실제 SMTP 서비스(SendGrid, AWS SES 등) 설정이 필요합니다.
+
+### 3-2. 대규모 레시피 데이터셋 적재 (1667건 + 이미지 1667장)
 기본 부팅 시 DB에는 SEED 35건만 들어있습니다.
 실제 시연·평가용 데이터셋(1667 레시피 + 이미지)은 별도 ETL로 적재해야 합니다.
 
@@ -65,7 +78,7 @@ cd backend
 python scripts/import_real_recipes.py
 
 # 3) 백엔드 재기동으로 인메모리 repo 갱신
-docker-compose restart backend
+docker compose restart backend
 
 # 4) 적재 확인 (recipe_count=1667+ 이어야 정상)
 curl http://localhost:8000/health
@@ -134,8 +147,11 @@ fridge-chef/
 ├── .github/
 │   ├── workflows/ci.yml     # pytest + ruff + tsc
 │   └── PULL_REQUEST_TEMPLATE.md
-├── docker-compose.yml
-├── .env.example
+├── docker-compose.yml           # 공통 base
+├── docker-compose.override.yml  # 로컬 자동 적용 (Mailpit 포함)
+├── docker-compose.prod.yml      # 운영 오버라이드
+├── .env.local.example           # 로컬 환경변수 템플릿
+├── .env.prod.example            # 운영 환경변수 템플릿
 └── README.md
 ```
 
