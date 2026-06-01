@@ -114,7 +114,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   return (
     <main className="min-h-screen bg-cream-100 dark:bg-clay-900">
       <header className="max-w-7xl mx-auto px-6 lg:px-12 py-6 flex items-center justify-between">
-        <BrandLockup size="md" />
+        <BrandLockup size="md" href="/fridge" />
         <button
           onClick={() => router.back()}
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-clay-700 dark:text-cream-200 hover:text-gochu-500"
@@ -318,7 +318,7 @@ function RecipeDetailSkeleton() {
   return (
     <main className="min-h-screen bg-cream-100 dark:bg-clay-900">
       <header className="max-w-7xl mx-auto px-6 lg:px-12 py-6">
-        <BrandLockup size="md" />
+        <BrandLockup size="md" href="/fridge" />
       </header>
       <div className="max-w-4xl mx-auto px-6 lg:px-8 pb-24">
         <div className="grid md:grid-cols-2 gap-8">

@@ -39,7 +39,7 @@ export default function FavoritesPage() {
   return (
     <main className="min-h-screen bg-cream-100 dark:bg-clay-900">
       <header className="px-6 lg:px-12 py-6 border-b-2 border-clay-900/10 dark:border-cream-100/10">
-        <BrandLockup size="md" />
+        <BrandLockup size="md" href="/fridge" />
       </header>
 
       <div className="max-w-5xl mx-auto px-6 lg:px-12 py-10">
