@@ -19,6 +19,8 @@ import {
 
 type Phase = 'wizard' | 'loading' | 'result' | 'error';
 
+const SESSION_KEY = 'recommend_result';
+
 export default function RecommendPage() {
   const toast = useToast();
   const [phase, setPhase] = useState<Phase>('wizard');
@@ -26,6 +28,19 @@ export default function RecommendPage() {
   const [progress, setProgress] = useState(0);
   // Browser setInterval 반환은 number — @types/node 의 NodeJS.Timeout 와 혼동 방지
   const progressIntervalRef = useRef<number | null>(null);
+
+  // 이전 결과 복원 (레시피 상세 → 뒤로가기 시 결과 유지)
+  useEffect(() => {
+    const saved = sessionStorage.getItem(SESSION_KEY);
+    if (saved) {
+      try {
+        setResult(JSON.parse(saved));
+        setPhase('result');
+      } catch {
+        sessionStorage.removeItem(SESSION_KEY);
+      }
+    }
+  }, []);
 
   // 컴포넌트 언마운트 시 in-flight interval cleanup (memory leak 방지)
   useEffect(() => {
@@ -49,6 +64,7 @@ export default function RecommendPage() {
       const fridge = await getFridge();
       const ingredients = fridge.items.map((i) => i.raw_name);
       const data = await recommend(ingredients, prefs);
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(data));
       setResult(data);
       setPhase('result');
       const total = data.model_a.length + data.model_b.length;
@@ -196,7 +212,7 @@ export default function RecommendPage() {
               음식 종류 · 선호 국가 · 알레르기 조건을 바꿔보세요.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Button variant="primary" onClick={() => setPhase('wizard')}>
+              <Button variant="primary" onClick={() => { sessionStorage.removeItem(SESSION_KEY); setPhase('wizard'); }}>
                 조건 다시 설정
               </Button>
               <Link
@@ -221,7 +237,7 @@ export default function RecommendPage() {
               <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight">
                 오늘의 <span className="ink-underline">추천</span>
               </h1>
-              <Button variant="secondary" onClick={() => setPhase('wizard')}>
+              <Button variant="secondary" onClick={() => { sessionStorage.removeItem(SESSION_KEY); setPhase('wizard'); }}>
                 조건 다시 설정
               </Button>
             </div>
@@ -289,7 +305,7 @@ export default function RecommendPage() {
               잠시 후 다시 시도해주세요.
             </p>
             <div className="mt-6 flex justify-center gap-2">
-              <Button variant="secondary" onClick={() => setPhase('wizard')}>
+              <Button variant="secondary" onClick={() => { sessionStorage.removeItem(SESSION_KEY); setPhase('wizard'); }}>
                 다시 시도
               </Button>
               <Link
