@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { Leaf, LogOut, Refrigerator, User } from 'lucide-react';
+import { Leaf, LogOut, Refrigerator, Star, User } from 'lucide-react';
 import { BrandLockup } from '@/components/Brand';
 import { logout } from '@/lib/api';
 import { useToast } from '@/components/Toast';
@@ -9,9 +9,10 @@ import { NavigationGuardProvider, useNavigationGuard } from '@/lib/navigationGua
 
 // NFR-USE-002: PC(1920px)·태블릿(768px) 반응형 사이드바
 const NAV = [
-  { href: '/fridge',    label: '내 냉장고',    icon: Refrigerator },
-  { href: '/profile',   label: '프로필 설정',  icon: User },
-  { href: '/allergies', label: '알레르기 설정', icon: Leaf },
+  { href: '/fridge',     label: '내 냉장고',    icon: Refrigerator },
+  { href: '/favorites',  label: '즐겨찾기',     icon: Star },
+  { href: '/profile',    label: '프로필 설정',  icon: User },
+  { href: '/allergies',  label: '알레르기 설정', icon: Leaf },
 ];
 
 function Sidebar() {
