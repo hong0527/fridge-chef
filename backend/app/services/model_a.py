@@ -152,9 +152,9 @@ def _weighted_match_score(prefs: dict, r: Recipe, max_cook: int, overlap: float)
 
 # 부분 매칭 임계값 — 최소 50% 재료 보유 시 후보로 고려 (Aggarwal §4.5 Jaccard threshold).
 # SDD §3.2 Model A — '재료를 완전히 가진(missing 0) 레시피만 추천' (사용자 의도).
-# 1.0 = 사용자 보유 ⊇ 레시피 주재료(BASIC_SEASONINGS 제외). 부분 매칭은 Model B 영역.
-# = Spoonacular findByIngredients(ignorePantry=false) 표준 패턴.
-_OVERLAP_THRESHOLD = float(os.environ.get("OVERLAP_THRESHOLD", "1.0"))
+# 사용자 보유(BASIC_SEASONINGS 제외) ⊇ 레시피 주재료. 부분 매칭은 Model B 영역.
+# 하드코드 — env override 금지 (Render Environment에 옛 값 0.4/0.5 잔존 위험 차단).
+_OVERLAP_THRESHOLD = 1.0
 
 
 async def recommend_cold_storage(
