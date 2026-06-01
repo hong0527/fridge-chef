@@ -93,7 +93,7 @@ export default function RecommendPage() {
   return (
     <main className="min-h-screen bg-cream-100 dark:bg-clay-900">
       <header className="max-w-7xl mx-auto px-6 lg:px-12 py-6 flex items-center justify-between">
-        <BrandLockup size="md" />
+        <BrandLockup size="md" href="/fridge" />
         <Link
           href="/fridge"
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-clay-700 dark:text-cream-200 hover:text-gochu-500"
