@@ -32,9 +32,9 @@ export function PreferenceWizard({
     (initial?.difficulty as (typeof DIFFICULTIES)[number]) ?? '초보',
   );
   const [diet, setDiet] = useState<boolean>(initial?.diet ?? false);
-  const [useAllergies, setUseAllergies] = useState<boolean>(
-    initial?.use_saved_allergies ?? true,
-  );
+  // UI 토글은 유지(레거시 일관성), 단 백엔드 전송에서는 제외 — 알레르기는 NFR-EVAL-001
+  // 안전 정책에 따라 항상 적용(use_saved_allergies 우회 차단).
+  const [useAllergies, setUseAllergies] = useState<boolean>(true);
   // 단일 선택 — 백엔드 Preferences.food_type/country가 단일 문자열이므로
   // UI 다중 선택은 사용자 의도 미스리딩(첫 개만 전송됨).
   const [foodType, setFoodType] = useState<string>(initial?.food_type ?? '');
@@ -55,7 +55,6 @@ export function PreferenceWizard({
       spicy: spicyMapped,
       difficulty,
       diet,
-      use_saved_allergies: useAllergies,
       food_type: foodType,
       country: country,
       max_cook_min: maxCookTime ?? 60,
