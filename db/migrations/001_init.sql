@@ -55,3 +55,12 @@ CREATE TABLE IF NOT EXISTS ratings (
 );
 CREATE INDEX IF NOT EXISTS ix_ratings_user_id   ON ratings (user_id);
 CREATE INDEX IF NOT EXISTS ix_ratings_recipe_id ON ratings (recipe_id);
+
+CREATE TABLE IF NOT EXISTS favorites (
+    id          SERIAL PRIMARY KEY,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    recipe_id   VARCHAR(64) NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, recipe_id)
+);
+CREATE INDEX IF NOT EXISTS ix_favorites_user_id ON favorites (user_id);

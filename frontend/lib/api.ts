@@ -150,6 +150,28 @@ export interface RecommendResponse {
   model_b: ModelBCandidate[];
 }
 
+/** FavoriteItem — backend/app/schemas/favorites.py */
+export interface FavoriteItem {
+  recipe_id: string;
+  name: string;
+  cook_min: number;
+  spicy: number;
+  difficulty_level: number;
+  country: string;
+  theme: string;
+  image_url?: string;
+  favorited_at: string;
+}
+
+export interface FavoriteListResponse {
+  items: FavoriteItem[];
+  total: number;
+}
+
+export interface FavoriteStatus {
+  is_favorite: boolean;
+}
+
 /** GET /api/recipes/{id} — backend/app/api/recipes.py */
 export interface Recipe {
   recipe_id: string;
@@ -237,6 +259,24 @@ export async function recommend(
 export async function getRecipe(id: string): Promise<Recipe> {
   const { data } = await api.get<Recipe>(`/recipes/${id}`);
   return data;
+}
+
+export async function getFavorites(): Promise<FavoriteListResponse> {
+  const { data } = await api.get<FavoriteListResponse>('/favorites');
+  return data;
+}
+
+export async function checkFavorite(recipe_id: string): Promise<FavoriteStatus> {
+  const { data } = await api.get<FavoriteStatus>(`/favorites/${recipe_id}`);
+  return data;
+}
+
+export async function addFavorite(recipe_id: string): Promise<void> {
+  await api.post(`/favorites/${recipe_id}`);
+}
+
+export async function removeFavorite(recipe_id: string): Promise<void> {
+  await api.delete(`/favorites/${recipe_id}`);
 }
 
 export interface UpdateProfileRequest {
