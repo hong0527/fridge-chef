@@ -1,0 +1,58 @@
+# Render 배포 설정 — FastAPI 백엔드 (학부 무료 Web Service)
+# 사용법:
+#   1. render.com → "New +" → "Blueprint" → 본 레포 선택
+#   2. 자동으로 본 파일 인식, 환경변수만 입력 (Supabase + JWT + Gemini)
+#   3. Deploy 클릭 → Render Free 도메인 onrender.com 발급
+#
+# Free Tier 주의: 15분 비활성 → sleep. 시연 30분 전 /health 1회 깨우기.
+services:
+  - type: web
+    name: fridgechef-backend
+    runtime: docker
+    plan: free
+    region: singapore  # Render Free는 ap-northeast-2 미지원, Singapore가 한국에서 가장 가까움
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true  # main 브랜치 push 시 자동 재배포
+    envVars:
+      # Supabase Database (운영 마스터)
+      - key: DATABASE_URL
+        sync: false  # 본인이 Render 대시보드에서 직접 입력 (서비스 키 노출 방지)
+      # Supabase Storage 메타
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: recipe-images
+      # JWT
+      - key: JWT_SECRET
+        generateValue: true  # Render가 자동 32바이트 랜덤 생성
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: JWT_EXPIRE_MIN
+        value: "1440"
+      # CORS — Vercel 도메인 + 로컬 개발
+      - key: CORS_ORIGINS
+        sync: false  # Vercel 배포 후 도메인 확정되면 입력
+      # Gemini (선택 — 없어도 폴백)
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: GEMINI_TIMEOUT_S
+        value: "8.0"
+      # 추천 파라미터
+      - key: RECOMMEND_TIMEOUT_S
+        value: "10.0"
+      - key: TOP_K_MODEL_A
+        value: "10"
+      - key: TOP_K_MODEL_B_PRE
+        value: "10"
+      - key: TOP_K_MODEL_B_FINAL
+        value: "3"
+      - key: MISSING_INGREDIENTS_MAX
+        value: "5"
+      - key: OVERLAP_THRESHOLD
+        value: "0.4"
