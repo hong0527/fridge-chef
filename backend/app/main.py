@@ -20,8 +20,8 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
 from app import __version__
-from app.api import auth, fridge, recipes, recommend
-from app.core.db import AsyncSessionLocal
+from app.api import auth, favorites, fridge, recipes, recommend
+from app.core.db import AsyncSessionLocal, Base, engine
 from app.models.orm import RecipeRow
 from app.models.recipe import Recipe
 from app.models.recipe_repository import SEED_RECIPES, RecipeRepository, set_repository
@@ -41,6 +41,10 @@ async def lifespan(_app: FastAPI):
     추천 결과가 DB와 일치한다.
     """
     try:
+        from app.models import orm as _orm_models  # noqa: F401 — Favorite 등 모든 모델 등록
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
         async with AsyncSessionLocal() as db:
             existing_ids = set(
                 (await db.scalars(select(RecipeRow.recipe_id))).all()
@@ -124,6 +128,7 @@ app.include_router(fridge.router, prefix="/api/fridge", tags=["fridge"])
 app.include_router(recommend.router, prefix="/api/recommend", tags=["recommend"])
 app.include_router(recipes.router, prefix="/api/recipes", tags=["recipes"])
 app.include_router(ingredients.router, prefix="/api/ingredients", tags=["ingredients"])
+app.include_router(favorites.router, prefix="/api/favorites", tags=["favorites"])
 
 # 정적 이미지 서빙 — backend/data/recipes_images/{cookid}.jpg → /static/recipes/{cookid}.jpg
 # code-reviewer HIGH 수정: Path.resolve()로 정규화 (CWD 의존 제거 + traversal 방어 보강)
