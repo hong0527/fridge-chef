@@ -14,7 +14,6 @@ NFR-PERF-003: 추천 응답 ≤10s (단일 모델 기준 < 1s 목표).
 from __future__ import annotations
 
 import math
-import os
 
 from app.core.allergy_map import expand_allergies
 from app.core.config import settings
