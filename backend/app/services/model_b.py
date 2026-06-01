@@ -15,17 +15,29 @@ NFR-EVAL-001: 알레르기 0%.
 
 from __future__ import annotations
 
+from app.core.allergy_map import expand_allergies
 from app.core.config import settings
 from app.core.synonym_map import normalize_list
 from app.models.recipe import Recipe
 from app.models.recipe_repository import RecipeRepository, get_repository
 from app.services.gemini_client import gemini_select_top3
-from app.services.model_a import _cosine, _vec_from_prefs, _vec_from_recipe
+from app.services.model_a import (
+    BASIC_SEASONINGS,
+    _cosine,
+    _vec_from_prefs,
+    _vec_from_recipe,
+)
 
 
 def _analyze_ingredients(fridge: set[str], recipe_ings: list[str]) -> tuple[list[str], list[str]]:
-    have = [ing for ing in recipe_ings if ing in fridge]
-    missing = [ing for ing in recipe_ings if ing not in fridge]
+    """양념을 제외한 주재료를 보유/부족으로 분류.
+
+    "소금이 부족합니다" 같은 의미 없는 missing을 방지 — 사용자에게 표시되는 "이것만 더 사면"
+    메시지가 자연스러워지고, missing 카운트가 max_missing 임계에 더 적합해진다.
+    """
+    main_ings = [ing for ing in recipe_ings if ing not in BASIC_SEASONINGS]
+    have = [ing for ing in main_ings if ing in fridge]
+    missing = [ing for ing in main_ings if ing not in fridge]
     return have, missing
 
 
@@ -43,10 +55,14 @@ async def recommend_missing_ingredients(
     repo: RecipeRepository | None = None,
 ) -> list[dict]:
     """SDD §3.2 모델 B 추천 알고리즘."""
+    # 빈 냉장고는 명시적 빈 응답 — 모든 레시피가 missing>0이 되어 의미 없는 추천 방지.
+    if not fridge_ingredients:
+        return []
     repo = repo or get_repository()
     fridge_norm_list = normalize_list(fridge_ingredients)
     fridge_norm = set(fridge_norm_list)
-    allergies = set(normalize_list(user_allergies or []))
+    # NFR-EVAL-001: 카테고리 알레르기를 세부재료로 확장 후 정규화.
+    allergies = set(normalize_list(expand_allergies(user_allergies or [])))
     max_cook = int(preferences.get("max_cook_min", 60))
     max_missing = settings.missing_ingredients_max
     pref_vec = _vec_from_prefs(preferences)
@@ -62,13 +78,17 @@ async def recommend_missing_ingredients(
         # 3단계: 보유/부족 분류
         have, missing = _analyze_ingredients(fridge_norm, r.whole_ingredients)
         # 4단계: 소프트 필터
+        # SDD §3.2 model_b 정의 — "부족 재료 N개만 더 사면 만들 수 있는" 레시피.
+        # missing=0은 model_a(냉털) 영역이므로 model_b에서 명시적으로 제외 (중복 차단).
+        if len(missing) == 0:
+            continue
         if len(missing) > max_missing:
             continue
         if len(r.whole_ingredients) == 0:
             continue
         # 5단계: 복합 점수
         have_ratio = len(have) / len(r.whole_ingredients)
-        pref_sim = _cosine(pref_vec, _vec_from_recipe(r))
+        pref_sim = _cosine(pref_vec, _vec_from_recipe(r, preferences))
         score = _composite_score(pref_sim, have_ratio, len(missing), max_missing)
         candidates.append((score, r, have, missing))
 

@@ -13,9 +13,11 @@ interface PreferenceWizardProps {
   initial?: Partial<Preferences>;
 }
 
-const DIFFICULTIES = ['왕초보', '초보', '중급', '고수'] as const;
-const FOOD_TYPES = ['한식', '중식', '일식', '양식', '동남아', '인도식', '디저트', '간식'];
-const COUNTRIES = ['한국', '일본', '중국', '이탈리아', '프랑스', '태국', '베트남', '멕시코', '미국'];
+// 백엔드 _DIFFICULTY_MAP, _THEME_MAP, _COUNTRY_MAP 키와 동일하게 유지.
+// 키 불일치 시 default 값으로 떨어져 모델 A의 country/theme/difficulty 차원이 무력화됨.
+const DIFFICULTIES = ['초보', '중급', '고급'] as const;
+const FOOD_TYPES = ['메인요리', '반찬', '국물', '디저트', '음료'];
+const COUNTRIES = ['한식', '중식', '일식', '양식', '기타'];
 const COOK_TIMES = [15, 30, 45, 60, 90, 120];
 
 export function PreferenceWizard({
@@ -33,21 +35,20 @@ export function PreferenceWizard({
   const [useAllergies, setUseAllergies] = useState<boolean>(
     initial?.use_saved_allergies ?? true,
   );
-  const [foodTypes, setFoodTypes] = useState<string[]>(
-    initial?.food_type ? [initial.food_type] : [],
-  );
-  const [countries, setCountries] = useState<string[]>(
-    initial?.country ? [initial.country] : [],
-  );
+  // 단일 선택 — 백엔드 Preferences.food_type/country가 단일 문자열이므로
+  // UI 다중 선택은 사용자 의도 미스리딩(첫 개만 전송됨).
+  const [foodType, setFoodType] = useState<string>(initial?.food_type ?? '');
+  const [country, setCountry] = useState<string>(initial?.country ?? '');
   const [maxCookTime, setMaxCookTime] = useState<number | undefined>(
     initial?.max_cook_min,
   );
   const [situation, setSituation] = useState<string>(initial?.user_context ?? '');
 
-  const toggle = (arr: string[], v: string) =>
-    arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
+  // Step 2 필수 입력 검증 — country/food_type 미선택 시 default 적용 차단.
+  const canSubmit = Boolean(foodType && country);
 
   const handleSubmit = () => {
+    if (!canSubmit) return;  // 버튼 disabled 외 안전망
     // UI 0-9 → 백엔드 1-5 매핑 (round(spice * 4 / 9) + 1).
     const spicyMapped = Math.min(5, Math.max(1, Math.round((spice * 4) / 9) + 1));
     onSubmit({
@@ -55,8 +56,8 @@ export function PreferenceWizard({
       difficulty,
       diet,
       use_saved_allergies: useAllergies,
-      food_type: foodTypes[0] ?? '메인요리',
-      country: countries[0] ?? '한식',
+      food_type: foodType,
+      country: country,
       max_cook_min: maxCookTime ?? 60,
       user_context: situation.trim(),
     });
@@ -213,28 +214,38 @@ export function PreferenceWizard({
             className="space-y-8"
           >
             <section>
-              <h3 className="font-display text-lg font-bold mb-3">음식 종류</h3>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex items-baseline justify-between mb-3">
+                <h3 className="font-display text-lg font-bold">음식 종류 <span className="text-gochu-500">*</span></h3>
+                {!foodType && (
+                  <span className="text-xs text-clay-500">하나를 선택해주세요</span>
+                )}
+              </div>
+              <div role="radiogroup" aria-label="음식 종류" className="flex flex-wrap gap-2">
                 {FOOD_TYPES.map((t) => (
                   <ChoiceChip
                     key={t}
                     label={t}
-                    active={foodTypes.includes(t)}
-                    onClick={() => setFoodTypes((p) => toggle(p, t))}
+                    active={foodType === t}
+                    onClick={() => setFoodType(foodType === t ? '' : t)}
                   />
                 ))}
               </div>
             </section>
 
             <section>
-              <h3 className="font-display text-lg font-bold mb-3">선호 국가</h3>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex items-baseline justify-between mb-3">
+                <h3 className="font-display text-lg font-bold">선호 국가 <span className="text-gochu-500">*</span></h3>
+                {!country && (
+                  <span className="text-xs text-clay-500">하나를 선택해주세요</span>
+                )}
+              </div>
+              <div role="radiogroup" aria-label="선호 국가" className="flex flex-wrap gap-2">
                 {COUNTRIES.map((c) => (
                   <ChoiceChip
                     key={c}
                     label={c}
-                    active={countries.includes(c)}
-                    onClick={() => setCountries((p) => toggle(p, c))}
+                    active={country === c}
+                    onClick={() => setCountry(country === c ? '' : c)}
                   />
                 ))}
               </div>
@@ -304,7 +315,10 @@ export function PreferenceWizard({
             size="lg"
             loading={loading}
             onClick={handleSubmit}
+            disabled={!canSubmit}
             type="button"
+            aria-disabled={!canSubmit}
+            title={canSubmit ? '추천 결과를 받습니다' : '음식 종류와 선호 국가를 선택해주세요'}
           >
             추천받기
           </Button>

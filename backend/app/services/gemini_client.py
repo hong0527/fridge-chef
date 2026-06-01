@@ -2,7 +2,7 @@
 
 NFR-REL-001: 외부 호출 8초 타임아웃 후 폴백 경로 (model_b 호출 측에서 처리).
 NFR-EVAL-002: citation_id 화이트리스트 검증 ≥95%.
-NFR-SEC-001: API 키 환경변수 (`GEMINI_API_KEY`).
+NFR-SEC-002: API 키 환경변수 (`GEMINI_API_KEY`).
 """
 
 from __future__ import annotations
@@ -49,13 +49,14 @@ def _parse_response_text(text: str) -> dict[str, Any] | None:
     if not text:
         return None
     text = text.strip()
-    # 코드펜스 제거
+    # 코드펜스 제거 — strip("`") 은 내용 중 backtick 도 제거할 위험이 있어 줄 단위로 처리
     if text.startswith("```"):
-        # ```json ... ``` 처리
-        text = text.strip("`")
-        if text.startswith("json"):
-            text = text[4:]
-        text = text.strip()
+        lines = text.split("\n")
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
     # 첫 { ~ 마지막 } 사이만 추출
     start = text.find("{")
     end = text.rfind("}")
@@ -125,5 +126,7 @@ async def gemini_select_top3(
         return None
     # 형 보정
     parsed.setdefault("reasons", [])
-    parsed.setdefault("citation_ids", parsed["selected"])
+    # NFR-EVAL-002: citation_ids 누락 시 빈 리스트로 폴백 → model_b 검증에서 환각 차단.
+    # 자기인용(selected 그대로 채우기)은 환각 차단을 무력화하므로 금지.
+    parsed.setdefault("citation_ids", [])
     return parsed

@@ -16,6 +16,9 @@ class Settings:
     top_k_model_b_pre: int = int(os.getenv("TOP_K_MODEL_B_PRE", "10"))
     top_k_model_b_final: int = int(os.getenv("TOP_K_MODEL_B_FINAL", "3"))
     missing_ingredients_max: int = int(os.getenv("MISSING_INGREDIENTS_MAX", "5"))
+    frontend_url: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    mailpit_host: str = os.getenv("MAILPIT_HOST", "localhost")
+    mailpit_port: int = int(os.getenv("MAILPIT_PORT", "1025"))
 
 
 settings = Settings()

@@ -1,0 +1,376 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "description": "추천 시스템 신뢰성 평가용 골든셋 — 시드 35개 기준 일관성·NFR-EVAL-001/002 측정",
+    "scenarios": 30,
+    "labeling_method": "시드 메타데이터(country/theme/spicy/allergens) 기반 도메인 룰 + 의도된 부정답 케이스 포함",
+    "metrics_target": {
+      "precision_at_10_min": 0.4,
+      "allergy_leak_rate_max": 0.0,
+      "coverage_min": 0.3,
+      "country_match_at_top1_min": 0.6
+    }
+  },
+  "scenarios": [
+    {
+      "id": "S001",
+      "description": "한식 매운 + 알레르기 없음",
+      "fridge": ["양파", "마늘", "계란", "김치", "돼지고기", "두부", "대파", "밥", "고추장"],
+      "preferences": {"spicy": 4, "country": "한식", "food_type": "메인요리", "difficulty": "초보", "max_cook_min": 60, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "kr",
+        "expected_relevant": ["r003", "r005", "r010", "r013"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S002",
+      "description": "한식 순한맛 + 초보",
+      "fridge": ["두부", "마늘", "대파", "감자", "양파", "당근", "간장"],
+      "preferences": {"spicy": 1, "country": "한식", "food_type": "메인요리", "difficulty": "초보", "max_cook_min": 30, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "kr",
+        "expected_relevant": ["r002", "r004", "r014"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S003",
+      "description": "양식 + 우유 알레르기",
+      "fridge": ["면", "올리브유", "마늘", "토마토", "양파"],
+      "preferences": {"spicy": 1, "country": "양식", "food_type": "메인요리", "difficulty": "중급", "max_cook_min": 30, "diet": false},
+      "allergies": ["우유"],
+      "ground_truth": {
+        "expected_country": "west",
+        "expected_relevant": ["r019"],
+        "forbidden_allergens": ["우유", "치즈", "버터", "크림"]
+      }
+    },
+    {
+      "id": "S004",
+      "description": "중식 + 매운맛",
+      "fridge": ["면", "양파", "돼지고기", "감자", "마늘", "고추"],
+      "preferences": {"spicy": 4, "country": "중식", "food_type": "메인요리", "difficulty": "중급", "max_cook_min": 40, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "cn",
+        "expected_relevant": ["r023", "r024"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S005",
+      "description": "일식 + 계란 알레르기",
+      "fridge": ["밥", "양파", "당근", "쌀", "어류", "김"],
+      "preferences": {"spicy": 1, "country": "일식", "food_type": "메인요리", "difficulty": "초보", "max_cook_min": 30, "diet": false},
+      "allergies": ["계란"],
+      "ground_truth": {
+        "expected_country": "jp",
+        "expected_relevant": ["r026"],
+        "forbidden_allergens": ["계란", "달걀"]
+      }
+    },
+    {
+      "id": "S006",
+      "description": "다이어트 + 저칼로리 + 야채 위주",
+      "fridge": ["양파", "버섯", "당근", "상추", "양배추", "고구마"],
+      "preferences": {"spicy": 1, "country": "한식", "food_type": "반찬", "difficulty": "초보", "max_cook_min": 20, "diet": true},
+      "allergies": [],
+      "ground_truth": {
+        "expected_theme": "side",
+        "expected_low_calorie": true,
+        "expected_relevant": ["r031"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S007",
+      "description": "한식 국물 + 초보",
+      "fridge": ["두부", "대파", "마늘", "감자", "양파", "된장", "고춧가루"],
+      "preferences": {"spicy": 2, "country": "한식", "food_type": "국물", "difficulty": "초보", "max_cook_min": 30, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_theme": "soup",
+        "expected_relevant": ["r003", "r004", "r013", "r015"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S008",
+      "description": "닭고기 요리 + 매운맛",
+      "fridge": ["닭고기", "감자", "당근", "양파", "고추장", "마늘"],
+      "preferences": {"spicy": 4, "country": "한식", "food_type": "메인요리", "difficulty": "중급", "max_cook_min": 40, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "kr",
+        "expected_relevant": ["r006", "r007"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S009",
+      "description": "양식 파스타 + 밀 알레르기 (불가능 케이스 — 추천 0 또는 우회)",
+      "fridge": ["면", "올리브유", "마늘", "토마토"],
+      "preferences": {"spicy": 1, "country": "양식", "food_type": "메인요리", "difficulty": "중급", "max_cook_min": 30, "diet": false},
+      "allergies": ["밀"],
+      "ground_truth": {
+        "expected_country": "west",
+        "expected_relevant": [],
+        "forbidden_allergens": ["밀", "면", "스파게티", "파스타"]
+      }
+    },
+    {
+      "id": "S010",
+      "description": "쇠고기 + 한식 + 초보",
+      "fridge": ["소고기", "무", "대파", "간장", "마늘", "미역"],
+      "preferences": {"spicy": 1, "country": "한식", "food_type": "국물", "difficulty": "중급", "max_cook_min": 30, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "kr",
+        "expected_theme": "soup",
+        "expected_relevant": ["r008", "r016"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S011",
+      "description": "복합 알레르기 — 대두 + 우유",
+      "fridge": ["계란", "대파", "양파", "면", "마늘"],
+      "preferences": {"spicy": 2, "country": "양식", "food_type": "메인요리", "difficulty": "초보", "max_cook_min": 30, "diet": false},
+      "allergies": ["대두", "우유"],
+      "ground_truth": {
+        "forbidden_allergens": ["대두", "두부", "된장", "간장", "두유", "우유", "치즈", "버터"]
+      }
+    },
+    {
+      "id": "S012",
+      "description": "어류 알레르기 (이전 누락 결함 회귀)",
+      "fridge": ["밥", "양파", "당근", "쌀"],
+      "preferences": {"spicy": 1, "country": "일식", "food_type": "메인요리", "difficulty": "초보", "max_cook_min": 30, "diet": false},
+      "allergies": ["어류"],
+      "ground_truth": {
+        "expected_relevant": [],
+        "forbidden_allergens": ["어류", "어묵", "생선", "고등어"]
+      }
+    },
+    {
+      "id": "S013",
+      "description": "고난도 요리 가능 + 양식",
+      "fridge": ["소고기", "올리브유", "마늘", "토마토", "면", "치즈"],
+      "preferences": {"spicy": 1, "country": "양식", "food_type": "메인요리", "difficulty": "고급", "max_cook_min": 40, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "west",
+        "expected_relevant": ["r021"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S014",
+      "description": "한식 반찬 위주",
+      "fridge": ["감자", "양파", "당근", "오이", "고추", "간장", "마늘"],
+      "preferences": {"spicy": 2, "country": "한식", "food_type": "반찬", "difficulty": "초보", "max_cook_min": 25, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_theme": "side",
+        "expected_relevant": ["r014", "r032", "r035"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S015",
+      "description": "분식 + 매운맛",
+      "fridge": ["떡", "어묵", "대파", "고추장"],
+      "preferences": {"spicy": 4, "country": "한식", "food_type": "메인요리", "difficulty": "초보", "max_cook_min": 20, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "kr",
+        "expected_relevant": ["r012"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S016",
+      "description": "짧은 조리시간 (≤10분)",
+      "fridge": ["계란", "대파", "면"],
+      "preferences": {"spicy": 2, "country": "한식", "food_type": "국물", "difficulty": "초보", "max_cook_min": 10, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_relevant": ["r034"],
+        "forbidden_allergens": [],
+        "max_cook_min": 10
+      }
+    },
+    {
+      "id": "S017",
+      "description": "비빔밥 시나리오 (다재료)",
+      "fridge": ["밥", "당근", "시금치", "버섯", "계란", "고추장", "마늘"],
+      "preferences": {"spicy": 2, "country": "한식", "food_type": "메인요리", "difficulty": "초보", "max_cook_min": 25, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "kr",
+        "expected_relevant": ["r009", "r010"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S018",
+      "description": "잡채 — 고급 한식",
+      "fridge": ["면", "소고기", "버섯", "당근", "시금치", "간장", "참기름"],
+      "preferences": {"spicy": 1, "country": "한식", "food_type": "메인요리", "difficulty": "고급", "max_cook_min": 50, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "kr",
+        "expected_relevant": ["r011"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S019",
+      "description": "일식 우동·라멘 시나리오",
+      "fridge": ["면", "간장", "대파", "계란", "돼지고기"],
+      "preferences": {"spicy": 2, "country": "일식", "food_type": "국물", "difficulty": "중급", "max_cook_min": 30, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "jp",
+        "expected_theme": "soup",
+        "expected_relevant": ["r027", "r030"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S020",
+      "description": "양식 카르보나라/까르보나라 (밀+계란+우유 의존)",
+      "fridge": ["면", "계란", "치즈", "돼지고기", "올리브유"],
+      "preferences": {"spicy": 1, "country": "양식", "food_type": "메인요리", "difficulty": "중급", "max_cook_min": 25, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "west",
+        "expected_relevant": ["r020"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S021",
+      "description": "탕수육 (중식)",
+      "fridge": ["돼지고기", "당근", "양파", "식용유"],
+      "preferences": {"spicy": 1, "country": "중식", "food_type": "메인요리", "difficulty": "고급", "max_cook_min": 50, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "cn",
+        "expected_relevant": ["r025"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S022",
+      "description": "오므라이스 · 규동 — 일식 메인",
+      "fridge": ["밥", "계란", "양파", "당근", "소고기", "간장"],
+      "preferences": {"spicy": 1, "country": "일식", "food_type": "메인요리", "difficulty": "초보", "max_cook_min": 25, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "jp",
+        "expected_relevant": ["r028", "r029"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S023",
+      "description": "샐러드 + 저칼로리 + 양식",
+      "fridge": ["상추", "양파", "올리브유", "치즈", "닭고기"],
+      "preferences": {"spicy": 1, "country": "양식", "food_type": "반찬", "difficulty": "초보", "max_cook_min": 15, "diet": true},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "west",
+        "expected_low_calorie": true,
+        "expected_relevant": ["r017", "r022"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S024",
+      "description": "전 (감자전 / 한국식 반찬)",
+      "fridge": ["감자", "양파", "식용유"],
+      "preferences": {"spicy": 1, "country": "한식", "food_type": "반찬", "difficulty": "초보", "max_cook_min": 25, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "kr",
+        "expected_relevant": ["r032"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S025",
+      "description": "김밥 · 도시락",
+      "fridge": ["밥", "김", "당근", "계란", "시금치", "단무지"],
+      "preferences": {"spicy": 1, "country": "한식", "food_type": "메인요리", "difficulty": "중급", "max_cook_min": 35, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "kr",
+        "expected_relevant": ["r033"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S026",
+      "description": "닭고기 알레르기 (육류 카테고리)",
+      "fridge": ["면", "올리브유", "마늘", "토마토", "치즈", "양파"],
+      "preferences": {"spicy": 1, "country": "양식", "food_type": "메인요리", "difficulty": "중급", "max_cook_min": 30, "diet": false},
+      "allergies": ["닭고기"],
+      "ground_truth": {
+        "expected_country": "west",
+        "forbidden_allergens": ["닭고기", "닭가슴살", "닭다리"]
+      }
+    },
+    {
+      "id": "S027",
+      "description": "콩나물국 — 저칼로리 한식 국물",
+      "fridge": ["콩나물", "대파", "마늘"],
+      "preferences": {"spicy": 1, "country": "한식", "food_type": "국물", "difficulty": "초보", "max_cook_min": 20, "diet": true},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "kr",
+        "expected_theme": "soup",
+        "expected_low_calorie": true,
+        "expected_relevant": ["r015"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S028",
+      "description": "마파두부 — 매운 중식",
+      "fridge": ["두부", "돼지고기", "고추", "마늘", "대파"],
+      "preferences": {"spicy": 5, "country": "중식", "food_type": "메인요리", "difficulty": "중급", "max_cook_min": 30, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_country": "cn",
+        "expected_relevant": ["r023"],
+        "forbidden_allergens": []
+      }
+    },
+    {
+      "id": "S029",
+      "description": "조개류 알레르기 (수산물)",
+      "fridge": ["면", "마늘", "올리브유", "토마토"],
+      "preferences": {"spicy": 1, "country": "양식", "food_type": "메인요리", "difficulty": "중급", "max_cook_min": 30, "diet": false},
+      "allergies": ["조개류(굴, 전복, 홍합 포함)"],
+      "ground_truth": {
+        "forbidden_allergens": ["조개류", "굴", "전복", "홍합", "바지락"]
+      }
+    },
+    {
+      "id": "S030",
+      "description": "빈 냉장고 (엣지 케이스)",
+      "fridge": [],
+      "preferences": {"spicy": 2, "country": "한식", "food_type": "메인요리", "difficulty": "초보", "max_cook_min": 60, "diet": false},
+      "allergies": [],
+      "ground_truth": {
+        "expected_relevant": [],
+        "expected_empty_response": true,
+        "forbidden_allergens": []
+      }
+    }
+  ]
+}

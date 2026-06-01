@@ -1,10 +1,13 @@
 """모델 A 단위 테스트 — SRS FR-011, NFR-EVAL-001, NFR-PERF-002.
 
-- 5차원 벡터 정확성 (맵기/5, 난이도/3, 저칼로리, 국가, 테마)
+- 5차원 벡터 정확성 (맵기/5, 난이도/3, 저칼로리, country_match, theme_match)
 - 코사인 유사도 동점 시 cook_min asc 정렬
-- contains_all 하드 필터
-- 알레르기 0% (NFR-EVAL-001)
+- contains_all 하드 필터 (양념 제외)
+- 알레르기 0% — 카테고리 확장 포함 (NFR-EVAL-001)
 - max_cook_min 초과 제외
+
+NOTE: country/theme 차원은 동치 매칭(0|1)으로 변경됨 — ordinal 인코딩(kr=0.2 등)
+거리 왜곡 결함을 architect 권고로 수정. SDD §3.2 "5차원 코사인" 텍스트는 유지.
 """
 
 from __future__ import annotations
@@ -14,72 +17,94 @@ import math
 import pytest
 
 from app.services.model_a import (
-    _contains_all,
     _cosine,
+    _ingredient_overlap_ratio,
     _vec_from_prefs,
     _vec_from_recipe,
     recommend_cold_storage,
 )
 
 
+def _contains_all(fridge: set[str], recipe_ings: list[str]) -> bool:
+    """기존 hard filter 호환 — PR #40 이후 overlap_ratio=1.0과 동치."""
+    return _ingredient_overlap_ratio(fridge, recipe_ings) == 1.0
+
 # ─────────────────────────────────────────────────────────────
+_KR_MAIN_PREFS = {"country": "한식", "food_type": "메인요리"}
+_WEST_DESSERT_PREFS = {"country": "양식", "food_type": "디저트"}
+
+
 class TestVector:
-    """5차원 벡터 변환."""
+    """5차원 벡터 변환 — country/theme는 prefs와 동치 매칭(0|1)."""
 
     def test_vec_from_recipe_dimensions(self, recipe_repo) -> None:
         """# FR-011 — 레시피 벡터는 정확히 5차원."""
         recipe = recipe_repo.get("t001")
-        vec = _vec_from_recipe(recipe)
+        vec = _vec_from_recipe(recipe, _KR_MAIN_PREFS)
         assert len(vec) == 5
 
-    def test_vec_spicy_normalized_by_5(self, recipe_repo) -> None:
-        """# FR-011 — 맵기 차원 = spicy/5."""
+    def test_vec_spicy_distance_match(self, recipe_repo) -> None:
+        """# FR-011 — spicy 거리 기반: 1 - |pref - recipe| / 5. tracer 권장으로 floor 제거."""
         recipe = recipe_repo.get("t002")  # spicy=2
-        vec = _vec_from_recipe(recipe)
-        assert math.isclose(vec[0], 2 / 5.0)
+        # _KR_MAIN_PREFS에 spicy 미지정 → default 3. |3-2|/5 = 0.2 → match = 0.8
+        vec = _vec_from_recipe(recipe, _KR_MAIN_PREFS)
+        assert math.isclose(vec[0], 1.0 - abs(3 - 2) / 5.0)
 
-    def test_vec_difficulty_normalized_by_3(self, recipe_repo) -> None:
-        """# FR-011 — 난이도 차원 = difficulty_level/3."""
-        recipe = recipe_repo.get("t004")  # difficulty_level=2
-        vec = _vec_from_recipe(recipe)
-        assert math.isclose(vec[1], 2 / 3.0)
+    def test_vec_difficulty_equivalence_match(self, recipe_repo) -> None:
+        """# FR-011 — difficulty 동치 매칭 (이전 floor 0.333 결함 수정).
 
-    def test_vec_low_calorie_binary(self, recipe_repo) -> None:
-        """# FR-011 — 저칼로리 차원 = 0 or 1."""
-        low = recipe_repo.get("t003")  # is_low_calorie=True
+        tracer CRITICAL 수정: 사용자 "고급" vs 레시피 "초보" 곱이 0.333이 아닌 0.0이
+        되어 country/theme 일치에 압도되지 않음.
+        """
+        recipe = recipe_repo.get("t004")  # difficulty_level=2 (중급)
+        # _KR_MAIN_PREFS difficulty 미지정 → default "초보"(1) → 불일치 0.0
+        vec = _vec_from_recipe(recipe, _KR_MAIN_PREFS)
+        assert vec[1] == 0.0
+        # 사용자 "중급" 선호 시 동치 → 1.0
+        prefs_mid = {**_KR_MAIN_PREFS, "difficulty": "중급"}
+        assert _vec_from_recipe(recipe, prefs_mid)[1] == 1.0
+
+    def test_vec_diet_match_inactive_when_pref_false(self, recipe_repo) -> None:
+        """# FR-011 — diet=False면 차원 무관(항상 1), diet=True면 동치 매칭."""
+        low = recipe_repo.get("t003")    # is_low_calorie=True
         not_low = recipe_repo.get("t002")
-        assert _vec_from_recipe(low)[2] == 1.0
-        assert _vec_from_recipe(not_low)[2] == 0.0
+        # diet=False (default) → 다이어트 무관 → 둘 다 1.0
+        assert _vec_from_recipe(low, _KR_MAIN_PREFS)[2] == 1.0
+        assert _vec_from_recipe(not_low, _KR_MAIN_PREFS)[2] == 1.0
+        # diet=True → 저칼로리만 1, 일반은 0
+        prefs_diet = {**_KR_MAIN_PREFS, "diet": True}
+        assert _vec_from_recipe(low, prefs_diet)[2] == 1.0
+        assert _vec_from_recipe(not_low, prefs_diet)[2] == 0.0
 
-    def test_vec_country_encoded(self, recipe_repo) -> None:
-        """# FR-011 — 국가 코드 인코딩 (kr=0.2, west=0.8)."""
-        kr = recipe_repo.get("t001")  # country=kr
-        west = recipe_repo.get("t003")  # country=west
-        assert math.isclose(_vec_from_recipe(kr)[3], 0.2)
-        assert math.isclose(_vec_from_recipe(west)[3], 0.8)
+    def test_vec_country_match_with_korean_prefs(self, recipe_repo) -> None:
+        """# FR-011 — country 동치 매칭: 한식 선호 + 한식 레시피 → 1.0, 양식 레시피 → 0.0."""
+        kr = recipe_repo.get("t001")     # country=kr
+        west = recipe_repo.get("t003")    # country=west
+        assert _vec_from_recipe(kr, _KR_MAIN_PREFS)[3] == 1.0
+        assert _vec_from_recipe(west, _KR_MAIN_PREFS)[3] == 0.0
 
-    def test_vec_theme_encoded(self, recipe_repo) -> None:
-        """# FR-011 — 테마 코드 인코딩 (main=0.2, side=0.4)."""
-        main = recipe_repo.get("t001")
-        side = recipe_repo.get("t005")  # theme=side
-        assert math.isclose(_vec_from_recipe(main)[4], 0.2)
-        assert math.isclose(_vec_from_recipe(side)[4], 0.4)
+    def test_vec_theme_match_with_main_prefs(self, recipe_repo) -> None:
+        """# FR-011 — theme 동치 매칭: 메인요리 선호 + 메인 레시피 → 1.0, 반찬 → 0.0."""
+        main = recipe_repo.get("t001")    # theme=main
+        side = recipe_repo.get("t005")    # theme=side
+        assert _vec_from_recipe(main, _KR_MAIN_PREFS)[4] == 1.0
+        assert _vec_from_recipe(side, _KR_MAIN_PREFS)[4] == 0.0
 
-    def test_vec_from_prefs_korean_labels(self) -> None:
-        """# FR-011 — 한글 선호도 → 코드 변환."""
-        prefs = {
-            "spicy": 5,
-            "difficulty": "고급",
-            "diet": True,
-            "country": "양식",
-            "food_type": "디저트",
-        }
-        vec = _vec_from_prefs(prefs)
-        assert math.isclose(vec[0], 1.0)        # 5/5
-        assert math.isclose(vec[1], 1.0)        # 3/3
-        assert vec[2] == 1.0                    # diet
-        assert math.isclose(vec[3], 0.8)        # west
-        assert math.isclose(vec[4], 0.8)        # dessert
+    def test_vec_country_match_inverts_with_western_prefs(self, recipe_repo) -> None:
+        """# FR-011 — 양식 선호로 바꾸면 동치 결과가 반대로 바뀜 (ordinal 결함 없음 회귀)."""
+        kr = recipe_repo.get("t001")
+        west = recipe_repo.get("t003")
+        # 양식 선호: 한식 레시피 → 0.0, 양식 레시피 → 1.0
+        assert _vec_from_recipe(kr, _WEST_DESSERT_PREFS)[3] == 0.0
+        assert _vec_from_recipe(west, _WEST_DESSERT_PREFS)[3] == 1.0
+
+    def test_vec_from_prefs_all_ones(self) -> None:
+        """# FR-011 — prefs 벡터는 모든 차원이 자기 동치이므로 [1,1,1,1,1].
+
+        recipe vec의 각 *_match와 코사인 곱이 가능해 매칭 정도가 점수에 직접 반영된다.
+        """
+        vec = _vec_from_prefs({"difficulty": "고급", "diet": True, "country": "양식"})
+        assert vec == [1.0, 1.0, 1.0, 1.0, 1.0]
 
 
 # ─────────────────────────────────────────────────────────────
@@ -101,16 +126,23 @@ class TestContainsAll:
     """하드 필터 — contains_all_ingredients."""
 
     def test_fridge_contains_all_recipe_ingredients(self) -> None:
-        """# FR-011 — 냉장고 ⊇ 레시피 → True."""
-        fridge = {"두부", "간장", "마늘", "양파"}
+        """# FR-011 — 냉장고 ⊇ 레시피 주재료 → True (양념 제외)."""
+        fridge = {"두부", "마늘", "양파"}
+        # 간장은 BASIC_SEASONINGS이므로 냉장고에 없어도 통과
         recipe = ["두부", "간장", "마늘"]
         assert _contains_all(fridge, recipe) is True
 
-    def test_missing_one_ingredient_returns_false(self) -> None:
-        """# FR-011 — 1개라도 부족 → False."""
+    def test_missing_one_main_ingredient_returns_false(self) -> None:
+        """# FR-011 — 주재료 1개라도 부족 → False."""
         fridge = {"두부", "간장"}
-        recipe = ["두부", "간장", "마늘"]
+        recipe = ["두부", "간장", "마늘"]  # 마늘은 주재료
         assert _contains_all(fridge, recipe) is False
+
+    def test_seasonings_excluded_from_check(self) -> None:
+        """# FR-011 회귀 — 양념(소금/식용유)만 부족해도 통과해야 함."""
+        fridge = {"계란", "대파"}
+        recipe = ["계란", "대파", "소금"]  # 소금은 양념
+        assert _contains_all(fridge, recipe) is True
 
 
 # ─────────────────────────────────────────────────────────────

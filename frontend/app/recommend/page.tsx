@@ -51,7 +51,17 @@ export default function RecommendPage() {
       const data = await recommend(ingredients, prefs);
       setResult(data);
       setPhase('result');
-      toast.show(`추천 ${data.model_a.length + data.model_b.length}개 도착!`, 'success');
+      const total = data.model_a.length + data.model_b.length;
+      if (total === 0) {
+        toast.show(
+          ingredients.length === 0
+            ? '냉장고가 비어있어요. 재료를 먼저 추가해주세요.'
+            : '조건에 맞는 레시피를 찾지 못했어요. 재료를 더 추가하거나 다른 음식 종류·국가를 선택해보세요.',
+          'info',
+        );
+      } else {
+        toast.show(`추천 ${total}개 도착!`, 'success');
+      }
     } catch (err) {
       toast.show(apiErrorMessage(err), 'error');
       setPhase('error');
@@ -167,7 +177,39 @@ export default function RecommendPage() {
           </motion.section>
         )}
 
-        {phase === 'result' && result && (
+        {phase === 'result' && result && (result.model_a.length + result.model_b.length === 0) && (
+          <motion.section
+            key="result-empty"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="max-w-2xl mx-auto px-6 lg:px-12 pt-12 pb-24 text-center"
+          >
+            <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-mustard-500/20 border-2 border-clay-900 dark:border-cream-100 mb-6">
+              <Refrigerator className="h-8 w-8 text-mustard-600" />
+            </div>
+            <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight">
+              조건에 맞는 레시피를 찾지 못했어요
+            </h1>
+            <p className="mt-4 text-clay-700 dark:text-cream-200 leading-relaxed">
+              냉장고 재료를 더 추가하거나,<br />
+              음식 종류 · 선호 국가 · 알레르기 조건을 바꿔보세요.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              <Button variant="primary" onClick={() => setPhase('wizard')}>
+                조건 다시 설정
+              </Button>
+              <Link
+                href="/fridge"
+                className="inline-flex items-center gap-1.5 px-5 h-11 rounded-full font-semibold border-2 border-clay-900 dark:border-cream-100 text-clay-900 dark:text-cream-100 hover:bg-cream-200 dark:hover:bg-clay-800 transition-colors"
+              >
+                <Refrigerator className="h-4 w-4" /> 냉장고로 돌아가기
+              </Link>
+            </div>
+          </motion.section>
+        )}
+
+        {phase === 'result' && result && (result.model_a.length + result.model_b.length > 0) && (
           <motion.section
             key="result"
             initial={{ opacity: 0, y: 16 }}

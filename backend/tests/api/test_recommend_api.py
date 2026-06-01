@@ -28,9 +28,13 @@ async def _set_user_allergies(
 
 
 async def _signup_user_with_allergies(
-    async_client, email: str, allergies: list[str]
+    async_client, db_session, email: str, allergies: list[str]
 ) -> dict[str, str]:
-    """별도 user 가입 + 로그인 → Bearer 헤더 반환."""
+    """별도 user 가입 + 이메일 인증 + 로그인 → Bearer 헤더 반환."""
+    from sqlalchemy import update
+
+    from app.models.orm import User
+
     await async_client.post(
         "/api/auth/signup",
         json={
@@ -40,6 +44,10 @@ async def _signup_user_with_allergies(
             "allergies": allergies,
         },
     )
+    await db_session.execute(
+        update(User).where(User.email == email).values(is_email_verified=True)
+    )
+    await db_session.commit()
     login = await async_client.post(
         "/api/auth/login",
         json={"email": email, "password": "Test1234!"},
@@ -135,11 +143,11 @@ class TestAllergyToggle:
     """
 
     async def test_toggle_on_applies_saved_allergies(
-        self, async_client, mock_gemini_success
+        self, async_client, db_session, mock_gemini_success
     ) -> None:
         """# FR-007 — 토글 ON → 가입 시 저장된 알레르기 자동 적용."""
         headers = await _signup_user_with_allergies(
-            async_client, "toggle-on@test.io", allergies=["계란"]
+            async_client, db_session, "toggle-on@test.io", allergies=["계란"]
         )
         payload = {
             "fridge_ingredients": ["밥", "계란", "간장", "두부", "마늘"],
@@ -157,11 +165,11 @@ class TestAllergyToggle:
             )
 
     async def test_toggle_off_ignores_saved_allergies(
-        self, async_client, mock_gemini_success
+        self, async_client, db_session, mock_gemini_success
     ) -> None:
         """# FR-007 — 토글 OFF → 저장 알레르기 미적용 (결과 비교)."""
         headers = await _signup_user_with_allergies(
-            async_client, "toggle-off@test.io", allergies=["계란"]
+            async_client, db_session, "toggle-off@test.io", allergies=["계란"]
         )
         payload_off = {
             "fridge_ingredients": ["밥", "계란", "간장"],
@@ -191,14 +199,14 @@ class TestAllergyZeroExposure:
     """NFR-EVAL-001 — 알레르기 노출 0% (게이팅 기준)."""
 
     async def test_no_allergen_in_response_when_allergy_specified(
-        self, async_client, mock_gemini_success
+        self, async_client, db_session, mock_gemini_success
     ) -> None:
         """# NFR-EVAL-001 — 응답 어디에도 알레르기 재료 포함 0건."""
         from app.models.recipe_repository import get_repository
 
         repo = get_repository()
         headers = await _signup_user_with_allergies(
-            async_client, "zero-exposure@test.io", allergies=["계란", "대두"]
+            async_client, db_session, "zero-exposure@test.io", allergies=["계란", "대두"]
         )
         payload = {
             "fridge_ingredients": ["밥", "계란", "두부", "간장", "마늘", "대파"],

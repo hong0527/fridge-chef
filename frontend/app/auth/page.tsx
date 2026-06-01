@@ -49,10 +49,8 @@ function AuthInner() {
     setLoading(true);
     try {
       if (mode === 'signup') {
-        // 백엔드 signup 응답은 UserPublic (토큰 없음). 회원가입 후 자동 로그인.
         const user = await signup(email, password, nickname);
         setAllergies(user.allergies);
-        await login(email, password);
         setVerifyOpen(true);
       } else {
         await login(email, password);
@@ -212,34 +210,38 @@ function AuthInner() {
 
       <Modal
         open={verifyOpen}
-        onClose={() => {
-          setVerifyOpen(false);
-          router.push('/fridge');
-        }}
-        title="이메일 인증을 확인해주세요"
+        onClose={() => setVerifyOpen(false)}
+        title="이메일 인증이 필요해요"
       >
         <div className="space-y-4">
           <div className="flex items-start gap-3 rounded-2xl bg-herb-500/10 border-2 border-herb-500/40 p-4">
             <CheckCircle2 className="h-6 w-6 shrink-0 text-herb-600 dark:text-herb-400" aria-hidden="true" />
             <div className="text-sm leading-relaxed">
-              <p className="font-bold text-herb-700 dark:text-herb-400">
-                {email}
-              </p>
+              <p className="font-bold text-herb-700 dark:text-herb-400">{email}</p>
               <p className="text-clay-700 dark:text-cream-200 mt-1">
-                위 주소로 인증 메일을 보냈어요. 메일함에서 링크를 클릭해 가입을 완료해주세요.
+                인증 메일을 발송했어요. 받은 편지함에서 링크를 클릭한 후 확인을 눌러주세요.
               </p>
             </div>
           </div>
           <p className="text-xs text-clay-500 dark:text-clay-400">
-            메일이 오지 않았다면 스팸함을 확인하거나 잠시 후 다시 시도해주세요.
+            ※ 인증 링크는 24시간 동안 유효합니다.
           </p>
           <Button
             variant="primary"
             size="md"
             className="w-full"
-            onClick={() => {
-              setVerifyOpen(false);
-              router.push('/fridge');
+            loading={loading}
+            onClick={async () => {
+              setLoading(true);
+              try {
+                await login(email, password);
+                setVerifyOpen(false);
+                router.push('/fridge');
+              } catch (err) {
+                toast.show(apiErrorMessage(err), 'error');
+              } finally {
+                setLoading(false);
+              }
             }}
           >
             확인

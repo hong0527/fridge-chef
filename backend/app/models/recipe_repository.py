@@ -100,3 +100,15 @@ _default_repo = RecipeRepository()
 def get_repository() -> RecipeRepository:
     """기본 리포지토리 싱글톤 접근자 (FastAPI Depends 호환)."""
     return _default_repo
+
+
+def set_repository(repo: RecipeRepository | None = None) -> None:
+    """기본 리포지토리 교체 — lifespan에서 DB 로드 후 호출 (캡슐화 보존).
+
+    이전: main.py가 `repo_mod._default_repo = ...` monkey-patch (code-reviewer HIGH 결함).
+    공개 API로 분리해 의도가 명확하고 향후 테스트에서도 안전하게 교체 가능.
+
+    repo=None: SEED_RECIPES를 담은 기본 RecipeRepository로 재설정 (테스트 teardown 용).
+    """
+    global _default_repo  # noqa: PLW0603 — 모듈 전역 교체가 의도된 동작
+    _default_repo = repo if repo is not None else RecipeRepository()

@@ -181,6 +181,7 @@ out/
 
 # OMC (oh-my-claudecode) 세션 상태 — 로컬 전용
 .omc/
+.claude/
 .claude/local/
 
 # Spyder project settings
@@ -242,3 +243,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+backend/data/recipes_images/

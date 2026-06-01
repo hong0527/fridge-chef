@@ -44,6 +44,7 @@ os.environ.setdefault("JWT_ALGORITHM", "HS256")
 os.environ.setdefault("JWT_EXPIRE_MIN", "60")
 os.environ.setdefault("GEMINI_API_KEY", "")  # 빈 키 → 폴백 강제
 os.environ.setdefault("RECOMMEND_TIMEOUT_S", "10.0")
+os.environ.setdefault("BCRYPT_ROUNDS", "4")  # 테스트 속도 최적화 (운영: 12)
 
 
 # ─── pytest-asyncio 모드 (pyproject 에서 auto 지정) ────────────
@@ -62,17 +63,23 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
 @pytest_asyncio.fixture(scope="function")
 async def db_engine():  # type: ignore[no-untyped-def]
-    """함수 스코프 SQLite-인메모리 엔진 + 테이블 생성/해제."""
+    """함수 스코프 DB 엔진 + 테이블 생성/해제.
+
+    DATABASE_URL 환경변수 기준으로 SQLite(로컬) 또는 PostgreSQL(CI) 자동 선택.
+    """
     from sqlalchemy.ext.asyncio import create_async_engine
 
     from app.core.db import Base
     from app.models import orm as _orm  # noqa: F401 — 모델 import 유도
 
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        future=True,
-    )
+    db_url = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+    is_sqlite = db_url.startswith("sqlite")
+
+    kwargs: dict = {"future": True}
+    if is_sqlite:
+        kwargs["connect_args"] = {"check_same_thread": False}
+
+    engine = create_async_engine(db_url, **kwargs)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -140,8 +147,12 @@ def client():  # type: ignore[no-untyped-def]
 
 
 @pytest_asyncio.fixture
-async def test_user(async_client) -> dict[str, Any]:
+async def test_user(async_client, db_session) -> dict[str, Any]:
     """기본 회원가입 사용자. password 평문 포함 (재로그인용)."""
+    from sqlalchemy import update
+
+    from app.models.orm import User
+
     payload = {
         "email": "tester@fridgechef.io",
         "password": "Test1234!",
@@ -150,6 +161,13 @@ async def test_user(async_client) -> dict[str, Any]:
     }
     resp = await async_client.post("/api/auth/signup", json=payload)
     assert resp.status_code == 201, f"signup 실패: {resp.text}"
+
+    # 테스트 환경에서는 이메일 인증 없이 바로 활성화
+    await db_session.execute(
+        update(User).where(User.email == payload["email"]).values(is_email_verified=True)
+    )
+    await db_session.commit()
+
     data = resp.json()
     data["password"] = payload["password"]
     return data
@@ -303,3 +321,78 @@ def recipe_repo():  # type: ignore[no-untyped-def]
         ),
     ]
     return RecipeRepository(recipes)
+
+
+# ─── 이메일 인증 우회 헬퍼 (테스트 전용) ─────────────────────────
+
+
+@pytest_asyncio.fixture
+async def verified_signup(async_client, db_session):
+    """회원가입 + DB에서 즉시 이메일 인증 처리 헬퍼."""
+    from sqlalchemy import update
+
+    from app.models.orm import User
+
+    async def _create(
+        email: str,
+        password: str,
+        nickname: str = "테스터",
+        allergies: list | None = None,
+    ) -> None:
+        await async_client.post("/api/auth/signup", json={
+            "email": email,
+            "password": password,
+            "nickname": nickname,
+            "allergies": allergies or [],
+        })
+        await db_session.execute(
+            update(User).where(User.email == email).values(is_email_verified=True)
+        )
+        await db_session.commit()
+
+    return _create
+
+
+# ─── auth_client fixture (test_auth_me_api 전용) ──────────────
+
+_TEST_EMAIL = "testme@test.com"
+_TEST_PASSWORD = "testpass1"
+
+
+@pytest.fixture
+def test_user_email() -> str:
+    return _TEST_EMAIL
+
+
+@pytest.fixture
+def test_user_password() -> str:
+    return _TEST_PASSWORD
+
+
+@pytest_asyncio.fixture
+async def auth_client(async_client, db_session):
+    """로그인된 상태의 AsyncClient — /api/auth/me 테스트 전용."""
+    from sqlalchemy import update
+
+    from app.models.orm import User
+
+    await async_client.post("/api/auth/signup", json={
+        "email": _TEST_EMAIL,
+        "password": _TEST_PASSWORD,
+        "nickname": "테스터",
+        "allergies": [],
+    })
+
+    # 테스트 환경에서는 이메일 인증 없이 바로 활성화
+    await db_session.execute(
+        update(User).where(User.email == _TEST_EMAIL).values(is_email_verified=True)
+    )
+    await db_session.commit()
+
+    resp = await async_client.post("/api/auth/login", json={
+        "email": _TEST_EMAIL,
+        "password": _TEST_PASSWORD,
+    })
+    token = resp.json()["access_token"]
+    async_client.headers["Authorization"] = f"Bearer {token}"
+    return async_client

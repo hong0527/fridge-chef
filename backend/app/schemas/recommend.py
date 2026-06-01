@@ -32,6 +32,7 @@ class RecipeBrief(BaseModel):
     difficulty_level: int
     country: str
     theme: str
+    image_url: str | None = None
 
 
 class ModelACandidate(RecipeBrief):

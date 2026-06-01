@@ -15,10 +15,19 @@ from __future__ import annotations
 
 import math
 
+from app.core.allergy_map import expand_allergies
 from app.core.config import settings
 from app.core.synonym_map import normalize_list
 from app.models.recipe import Recipe
 from app.models.recipe_repository import RecipeRepository, get_repository
+
+# 기본 양념·기름·물 — 사용자가 명시 입력하지 않아도 가정 (NFR-USE-001 편의).
+# contains_all 비교와 model_b 보유/부족 분류에서 모두 제외해 추천 빈 결과 빈도를 줄임.
+BASIC_SEASONINGS: frozenset[str] = frozenset({
+    "소금", "설탕", "물", "후추",
+    "식용유", "올리브유", "참기름", "들기름",
+    "간장", "고추장", "된장",
+})
 
 # 난이도 한글 → 숫자
 _DIFFICULTY_MAP: dict[str, int] = {"초보": 1, "중급": 2, "고급": 3}
@@ -40,37 +49,40 @@ _THEME_MAP: dict[str, str] = {
 }
 
 
-def _vec_from_recipe(r: Recipe) -> list[float]:
-    """레시피 → 5차원 정규화 벡터.
+def _vec_from_recipe(r: Recipe, prefs: dict) -> list[float]:
+    """레시피 → 사용자 선호 기준 5차원 정규화 벡터 (모든 차원 0~1 동치/거리 매칭).
 
-    차원: [맵기, 난이도, 저칼로리, 나라(원-핫 평균치 대신 해시 정규화), 테마(동일)].
+    차원 (모두 사용자 선호 대비 점수, 1=완벽 일치, 0=완전 불일치):
+      0. spicy_match    — 1 - |pref - recipe| / 5  (거리 기반)
+      1. diff_match     — 동치 0|1 (이전 0.333 floor 제거 — tracer CRITICAL 수정)
+      2. diet_match     — diet=True면 동치, diet=False면 항상 1 (다이어트 비활성 시 무관)
+      3. country_match  — 동치 0|1
+      4. theme_match    — 동치 0|1
+
+    이전 결함(model_a.py:65 difficulty_level/3.0): 사용자 "고급"(1.0) vs 레시피 "초보"(0.333)
+    곱 0.333이 country/theme 일치 1.0 두 차원에 압도되던 문제를 동치 매칭으로 해소.
     """
-    country_code = {"kr": 0.2, "cn": 0.4, "jp": 0.6, "west": 0.8, "etc": 1.0}.get(r.country, 0.5)
-    theme_code = {"main": 0.2, "side": 0.4, "soup": 0.6, "dessert": 0.8, "drink": 1.0}.get(r.theme, 0.5)
-    return [
-        r.spicy / 5.0,
-        r.difficulty_level / 3.0,
-        1.0 if r.is_low_calorie else 0.0,
-        country_code,
-        theme_code,
-    ]
+    spicy_pref = int(prefs.get("spicy", 3))
+    diff_pref = _DIFFICULTY_MAP.get(str(prefs.get("difficulty", "초보")), 1)
+    country_pref = _COUNTRY_MAP.get(str(prefs.get("country", "한식")), "kr")
+    theme_pref = _THEME_MAP.get(str(prefs.get("food_type", "메인요리")), "main")
+    diet_pref = bool(prefs.get("diet", False))
+
+    spicy_match = 1.0 - abs(spicy_pref - r.spicy) / 5.0
+    diff_match = 1.0 if r.difficulty_level == diff_pref else 0.0
+    diet_match = (1.0 if r.is_low_calorie else 0.0) if diet_pref else 1.0
+    country_match = 1.0 if r.country == country_pref else 0.0
+    theme_match = 1.0 if r.theme == theme_pref else 0.0
+    return [spicy_match, diff_match, diet_match, country_match, theme_match]
 
 
 def _vec_from_prefs(prefs: dict) -> list[float]:
-    spicy = int(prefs.get("spicy", 3))
-    diff = _DIFFICULTY_MAP.get(str(prefs.get("difficulty", "초보")), 1)
-    diet = bool(prefs.get("diet", False))
-    country = _COUNTRY_MAP.get(str(prefs.get("country", "한식")), "kr")
-    theme = _THEME_MAP.get(str(prefs.get("food_type", "메인요리")), "main")
-    country_code = {"kr": 0.2, "cn": 0.4, "jp": 0.6, "west": 0.8, "etc": 1.0}[country]
-    theme_code = {"main": 0.2, "side": 0.4, "soup": 0.6, "dessert": 0.8, "drink": 1.0}[theme]
-    return [
-        spicy / 5.0,
-        diff / 3.0,
-        1.0 if diet else 0.0,
-        country_code,
-        theme_code,
-    ]
+    """사용자 선호 → 5차원 정규화 벡터.
+
+    모든 차원이 "자기 자신과의 동치"이므로 항상 1.0 — 레시피 벡터의 각 *_match와
+    코사인 곱이 가능해 매칭 정도가 점수에 직접 반영된다.
+    """
+    return [1.0, 1.0, 1.0, 1.0, 1.0]
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
@@ -82,9 +94,63 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return dot / (na * nb)
 
 
-def _contains_all(fridge: set[str], recipe_ings: list[str]) -> bool:
-    """냉장고가 레시피의 모든 재료를 보유하는가."""
-    return all(ing in fridge for ing in recipe_ings)
+def _ingredient_overlap_ratio(fridge: set[str], recipe_ings: list[str]) -> float:
+    """냉장고와 레시피 주재료의 매칭 비율 (0~1) — Jaccard-like overlap.
+
+    Aggarwal 2016 §4.5: hard `contains_all` 대신 부분 매칭 허용 (overlap ratio).
+    BASIC_SEASONINGS는 사용자 보유 가정으로 비교에서 제외.
+
+    예: 사용자 7개 재료 + 레시피 주재료 5개 → 3개 매칭이면 3/5 = 0.6
+    """
+    required = [ing for ing in recipe_ings if ing not in BASIC_SEASONINGS]
+    if not required:
+        return 1.0
+    matched = sum(1 for ing in required if ing in fridge)
+    return matched / len(required)
+
+
+def _weighted_match_score(prefs: dict, r: Recipe, max_cook: int, overlap: float) -> float:
+    """Aggarwal 2016 §4.4 — 명목형+서열형 혼합 특성에 표준 가중합.
+
+    가중치 (합=1.0):
+      ingredient_overlap 0.30 — 보유 재료 매칭 비율 (가장 중요)
+      country            0.20 — 음식 종류
+      theme              0.15 — 메인/반찬/국물 등 형태
+      difficulty         0.13 — 난이도 거리
+      spicy              0.10 — 맵기 거리
+      diet               0.07 — 다이어트 토글
+      cook               0.05 — 빠를수록 가산
+
+    + recipe_id 해시 jitter (0~0.001) — 동률 결정론 해소 (RecSys 표준 score perturbation).
+    """
+    c_pref = _COUNTRY_MAP.get(str(prefs.get("country", "한식")), "kr")
+    t_pref = _THEME_MAP.get(str(prefs.get("food_type", "메인요리")), "main")
+    d_pref = _DIFFICULTY_MAP.get(str(prefs.get("difficulty", "초보")), 1)
+    s_pref = int(prefs.get("spicy", 3))
+    diet_pref = bool(prefs.get("diet", False))
+
+    country_match = 1.0 if r.country == c_pref else 0.0
+    theme_match = 1.0 if r.theme == t_pref else 0.0
+    diff_match = 1.0 - abs(r.difficulty_level - d_pref) / 2.0
+    spicy_match = 1.0 - abs(r.spicy - s_pref) / 5.0
+    diet_match = 1.0 if (r.is_low_calorie == diet_pref) else 0.0
+    cook_norm = 1.0 - min(r.cook_min, max_cook) / max(1, max_cook)
+    id_jitter = (hash(r.recipe_id) % 1000) / 1_000_000.0
+
+    return (
+        0.30 * overlap
+        + 0.20 * country_match
+        + 0.15 * theme_match
+        + 0.13 * diff_match
+        + 0.10 * spicy_match
+        + 0.07 * diet_match
+        + 0.05 * cook_norm
+        + id_jitter
+    )
+
+
+# 부분 매칭 임계값 — 최소 50% 재료 보유 시 후보로 고려 (Aggarwal §4.5 Jaccard threshold).
+_OVERLAP_THRESHOLD = 0.5
 
 
 async def recommend_cold_storage(
@@ -93,35 +159,60 @@ async def recommend_cold_storage(
     user_allergies: list[str],
     repo: RecipeRepository | None = None,
 ) -> list[dict]:
-    """SDD §3.2 모델 A 추천 알고리즘.
+    """SDD §3.2 모델 A — Stratified Top-K + Jaccard overlap + 가중합 score.
 
-    NFR-EVAL-001: 알레르기 노출 0% (allergens 교집합 즉시 제외).
-    NFR-PERF-003: 10초 타임아웃 내 완료 (recommend_service 레벨에서 강제).
+    개선 (Issue #40):
+    1. contains_all hard filter → ingredient overlap ratio (≥ 0.5) — 부분 매칭 허용
+    2. country/theme/difficulty Stratified retrieval — 사용자 선호 일치 후보 우선
+    3. 가중합 score + jitter — 동률 결정론 해소
+
+    NFR-EVAL-001 알레르기 0% / NFR-PERF-003 10초.
     """
     repo = repo or get_repository()
+    if not fridge_ingredients:
+        return []
+
     fridge_norm = set(normalize_list(fridge_ingredients))
-    allergies = set(normalize_list(user_allergies or []))
+    allergies = set(normalize_list(expand_allergies(user_allergies or [])))
     max_cook = int(preferences.get("max_cook_min", 60))
-    pref_vec = _vec_from_prefs(preferences)
     top_k = settings.top_k_model_a
 
-    scored: list[tuple[float, Recipe]] = []
+    c_pref = _COUNTRY_MAP.get(str(preferences.get("country", "한식")), "kr")
+    t_pref = _THEME_MAP.get(str(preferences.get("food_type", "메인요리")), "main")
+    d_pref = _DIFFICULTY_MAP.get(str(preferences.get("difficulty", "초보")), 1)
+
+    # 1단계: base 필터 (안전·핵심 — overlap ≥ 0.5, 알레르기 차단, 조리시간)
+    base_pool: list[tuple[Recipe, float]] = []
     for r in repo.list_all():
-        # 2단계: 알레르기 하드컷
         if allergies and any(a in allergies for a in r.allergens):
             continue
-        # 3단계: 하드 필터 (냉장고 ⊇ 레시피)
-        if not _contains_all(fridge_norm, r.whole_ingredients):
-            continue
-        # 4단계: 조리시간
         if r.cook_min > max_cook:
             continue
-        # 5단계: 코사인 유사도
-        score = _cosine(pref_vec, _vec_from_recipe(r))
-        scored.append((score, r))
+        overlap = _ingredient_overlap_ratio(fridge_norm, r.whole_ingredients)
+        if overlap < _OVERLAP_THRESHOLD:
+            continue
+        base_pool.append((r, overlap))
 
-    # 6단계: 상위 K 반환 (점수 desc, 동점 시 cook_min asc)
+    # 2단계: Stratified retrieval — 사용자 선호 일치 단계로 풀 좁힘
+    tier1 = [(r, o) for r, o in base_pool
+             if r.country == c_pref and r.theme == t_pref and r.difficulty_level == d_pref]
+    tier2 = [(r, o) for r, o in base_pool if r.country == c_pref and r.theme == t_pref]
+    tier3 = [(r, o) for r, o in base_pool if r.country == c_pref]
+
+    selected: list[tuple[Recipe, float]] = []
+    seen_ids: set[str] = set()
+    for tier in (tier1, tier2, tier3, base_pool):
+        for r, o in tier:
+            if r.recipe_id not in seen_ids:
+                selected.append((r, o))
+                seen_ids.add(r.recipe_id)
+        if len(selected) >= top_k:
+            break
+
+    # 3단계: 가중합 score + 정렬
+    scored = [(_weighted_match_score(preferences, r, max_cook, o), r) for r, o in selected]
     scored.sort(key=lambda x: (-x[0], x[1].cook_min))
+
     out: list[dict] = []
     for score, r in scored[:top_k]:
         d = r.to_brief_dict()

@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Plus, Trash2, Search, Refrigerator, AlertTriangle, ArrowRight } from 'lucide-react';
-import { BrandLockup } from '@/components/Brand';
 import { Button } from '@/components/Button';
 import { FridgeChip } from '@/components/FridgeChip';
 import { Modal } from '@/components/Modal';
@@ -42,37 +41,25 @@ export default function FridgePage() {
         const data = await getFridge();
         if (alive) setIngredients(data.items);
       } catch (err) {
-        if (alive) {
-          toast.show(apiErrorMessage(err), 'error');
-        }
+        if (alive) toast.show(apiErrorMessage(err), 'error');
       } finally {
         if (alive) setLoading(false);
       }
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Autocomplete (debounced) — instant local suggestion for typing latency,
-  // then server-authoritative SYNONYM_MAP result replaces it.
   useEffect(() => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
     const q = input.trim();
-    if (!q) {
-      setSuggestions([]);
-      setHighlight(-1);
-      return;
-    }
+    if (!q) { setSuggestions([]); setHighlight(-1); return; }
     setSuggestions(localSuggest(q));
     debounceRef.current = window.setTimeout(async () => {
       const list = await searchIngredients(q);
       setSuggestions(list.slice(0, 8));
     }, 180);
-    return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    };
+    return () => { if (debounceRef.current) window.clearTimeout(debounceRef.current); };
   }, [input]);
 
   const canAdd = useMemo(() => {
@@ -118,15 +105,12 @@ export default function FridgePage() {
     }
   };
 
-  // 백엔드에 일괄 삭제 엔드포인트가 없어 개별 DELETE 를 순차 실행.
   const handleClearAll = async () => {
     setClearOpen(false);
     const prev = ingredients;
     setIngredients([]);
     try {
-      for (const ing of prev) {
-        await removeIngredient(ing.id);
-      }
+      for (const ing of prev) await removeIngredient(ing.id);
       toast.show('냉장고를 비웠어요.', 'success');
     } catch (err) {
       setIngredients(prev);
@@ -135,36 +119,24 @@ export default function FridgePage() {
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'ArrowDown') {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight((h) => Math.min(suggestions.length - 1, h + 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight((h) => Math.max(-1, h - 1)); }
+    else if (e.key === 'Enter') {
       e.preventDefault();
-      setHighlight((h) => Math.min(suggestions.length - 1, h + 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setHighlight((h) => Math.max(-1, h - 1));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (highlight >= 0 && suggestions[highlight]) {
-        handleAdd(suggestions[highlight]);
-      } else {
-        handleAdd();
-      }
-    } else if (e.key === 'Escape') {
-      setSuggestions([]);
-    }
+      if (highlight >= 0 && suggestions[highlight]) handleAdd(suggestions[highlight]);
+      else handleAdd();
+    } else if (e.key === 'Escape') setSuggestions([]);
   };
 
   const goRecommend = () => {
-    if (ingredients.length === 0) {
-      toast.show('먼저 재료를 1개 이상 추가해주세요.', 'warning');
-      return;
-    }
+    if (ingredients.length === 0) { toast.show('먼저 재료를 1개 이상 추가해주세요.', 'warning'); return; }
     router.push('/recommend');
   };
 
   return (
     <main className="min-h-screen bg-cream-100 dark:bg-clay-900">
-      <header className="max-w-7xl mx-auto px-6 lg:px-12 py-6 flex items-center justify-between">
-        <BrandLockup size="md" />
+      {/* BrandLockup 제거 — layout.tsx 사이드바에서 렌더됨 */}
+      <header className="max-w-5xl mx-auto px-6 lg:px-8 py-6 flex items-center justify-end">
         <Link
           href="/recommend"
           className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-clay-700 dark:text-cream-200 hover:text-gochu-500"
@@ -173,7 +145,7 @@ export default function FridgePage() {
         </Link>
       </header>
 
-      <section className="max-w-3xl mx-auto px-6 lg:px-8 pt-4 pb-16">
+      <section className="max-w-5xl mx-auto px-6 lg:px-8 pb-16">
         <div className="flex items-end justify-between mb-6">
           <div>
             <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight flex items-center gap-3">
@@ -192,13 +164,10 @@ export default function FridgePage() {
           </span>
         </div>
 
-        {/* Input */}
         <div className="relative">
           <div className="flex items-center gap-2 rounded-2xl border-2 border-clay-900 dark:border-cream-100 bg-cream-50 dark:bg-clay-800 shadow-sticker px-4 h-14">
             <Search className="h-5 w-5 text-clay-500" aria-hidden="true" />
-            <label htmlFor="ing-input" className="sr-only">
-              재료 이름 입력
-            </label>
+            <label htmlFor="ing-input" className="sr-only">재료 이름 입력</label>
             <input
               id="ing-input"
               type="text"
@@ -213,15 +182,10 @@ export default function FridgePage() {
               aria-controls="suggest-list"
               aria-expanded={suggestions.length > 0}
             />
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={() => handleAdd()}
-              disabled={!canAdd}
-              loading={adding}
-              type="button"
-            >
-              <Plus className="h-4 w-4" /> 추가
+            <Button size="sm" variant="primary" onClick={() => handleAdd()} disabled={!canAdd} loading={adding} type="button">
+              <span className="flex items-center gap-1">
+                <Plus className="h-4 w-4" /> 추가
+              </span>
             </Button>
           </div>
 
@@ -240,9 +204,7 @@ export default function FridgePage() {
                     onMouseEnter={() => setHighlight(i)}
                     onClick={() => handleAdd(s)}
                     className={`flex w-full items-center justify-between px-4 py-3 text-left border-b last:border-b-0 border-clay-900/10 dark:border-cream-100/10 ${
-                      i === highlight
-                        ? 'bg-gochu-500/10'
-                        : 'hover:bg-cream-200 dark:hover:bg-clay-700'
+                      i === highlight ? 'bg-gochu-500/10' : 'hover:bg-cream-200 dark:hover:bg-clay-700'
                     }`}
                   >
                     <span className="font-medium">{s}</span>
@@ -254,7 +216,6 @@ export default function FridgePage() {
           )}
         </div>
 
-        {/* Tags */}
         <div className="mt-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-display text-lg font-bold">담긴 재료</h2>
@@ -276,21 +237,16 @@ export default function FridgePage() {
               ))}
             </div>
           ) : ingredients.length === 0 ? (
-            <div className="rounded-3xl border-2 border-dashed border-clay-400 dark:border-cream-100/30 bg-cream-50/40 dark:bg-clay-800/40 p-10 text-center">
+            <div className="rounded-3xl border-2 border-dashed border-clay-400 dark:border-cream-100/30 bg-cream-50/40 dark:bg-clay-800/40 p-24 text-center">
               <Refrigerator className="h-10 w-10 mx-auto text-clay-400" aria-hidden="true" />
               <p className="mt-3 font-semibold">아직 비어있어요</p>
-              <p className="text-sm text-clay-600 dark:text-clay-400 mt-1">
-                위 입력창에 재료 이름을 넣어보세요.
-              </p>
+              <p className="text-sm text-clay-600 dark:text-clay-400 mt-1">위 입력창에 재료 이름을 넣어보세요.</p>
             </div>
           ) : (
             <ul className="flex flex-wrap gap-2">
               {ingredients.map((ing) => (
                 <li key={ing.id}>
-                  <FridgeChip
-                    name={ing.raw_name}
-                    onRemove={() => handleRemove(ing.id)}
-                  />
+                  <FridgeChip name={ing.raw_name} onRemove={() => handleRemove(ing.id)} />
                 </li>
               ))}
             </ul>
@@ -304,31 +260,21 @@ export default function FridgePage() {
           )}
         </div>
 
-        {/* Sticky CTA */}
-        <div className="sticky bottom-4 mt-12 flex justify-end">
-          <Button
-            size="lg"
-            variant="primary"
-            onClick={goRecommend}
-            disabled={ingredients.length === 0}
-          >
-            추천받기 <ArrowRight className="h-5 w-5" />
+        <div className="sticky bottom-4 mt-6 flex justify-end">
+          <Button size="md" variant="primary" onClick={goRecommend} disabled={ingredients.length === 0}>
+            <span className="flex items-center gap-2 whitespace-nowrap">
+              추천받기 <ArrowRight className="h-5 w-5" />
+            </span>
           </Button>
         </div>
       </section>
 
-      <Modal
-        open={clearOpen}
-        onClose={() => setClearOpen(false)}
-        title="모든 재료를 삭제할까요?"
-      >
+      <Modal open={clearOpen} onClose={() => setClearOpen(false)} title="모든 재료를 삭제할까요?">
         <p className="text-clay-700 dark:text-cream-200">
           담겨있는 <strong>{ingredients.length}개</strong>의 재료가 모두 사라집니다. 되돌릴 수 없어요.
         </p>
         <div className="mt-6 flex gap-2 justify-end">
-          <Button variant="secondary" onClick={() => setClearOpen(false)}>
-            취소
-          </Button>
+          <Button variant="secondary" onClick={() => setClearOpen(false)}>취소</Button>
           <Button variant="danger" onClick={handleClearAll}>
             <Trash2 className="h-4 w-4" /> 전체 삭제
           </Button>
