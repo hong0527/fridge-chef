@@ -179,31 +179,8 @@ export default function RecommendPage() {
               </div>
             </div>
 
-            {/* Skeleton previews */}
-            <div className="space-y-10">
-              <div>
-                <h3 className="font-display text-lg font-bold mb-3 flex items-center gap-2">
-                  <Refrigerator className="h-5 w-5 text-herb-500" />
-                  냉털 레시피
-                </h3>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <RecipeCardSkeleton key={i} type="cold" />
-                  ))}
-                </div>
-              </div>
-              <div>
-                <h3 className="font-display text-lg font-bold mb-3 flex items-center gap-2">
-                  <ChefHat className="h-5 w-5 text-mustard-500" />
-                  부족재료 레시피
-                </h3>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <RecipeCardSkeleton key={i} type="missing" />
-                  ))}
-                </div>
-              </div>
-            </div>
+            {/* skeleton 제거 — 사용자 피드백: 추천중인데 결과 카드처럼 보임 (혼란 유발).
+                loading 중엔 텍스트+프로그레스바만 표시, 결과 도착 시 카드 표시. */}
           </motion.section>
         )}
 
