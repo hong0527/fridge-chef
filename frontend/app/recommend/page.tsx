@@ -27,26 +27,21 @@ export default function RecommendPage() {
   // Browser setInterval 반환은 number — @types/node 의 NodeJS.Timeout 와 혼동 방지
   const progressIntervalRef = useRef<number | null>(null);
 
-  // 마운트 시: referrer 기반 분기 (사용자 시연 피드백 반영).
-  //   - 메뉴 상세(/recipe/*) 에서 뒤로가기 → 결과 화면 복원
-  //   - 다른 페이지(/fridge, /allergies, /)에서 진입 → wizard 시작 (sessionStorage 클리어)
+  // 마운트 시: 저장된 결과 있으면 복원 (사용자 시연 피드백 — referrer 신호 신뢰 불가).
+  //   - sessionStorage에 'recommend_result' 있으면 결과 화면 복원
+  //   - 명시적 '다시 추천' 버튼 클릭 시에만 클리어 (handleSubmit + result 헤더 버튼)
+  //   - 다른 페이지(/fridge, /allergies)에서 진입해도 결과 유지 — 뒤로가기 영구 깨짐 차단
   useEffect(() => {
     try {
-      const ref = typeof document !== 'undefined' ? document.referrer : '';
-      const fromRecipeDetail = ref.includes('/recipe/');
-      if (fromRecipeDetail) {
-        const saved = sessionStorage.getItem('recommend_result');
-        if (saved) {
-          const parsed = JSON.parse(saved) as RecommendResponse;
-          setResult(parsed);
-          setPhase('result');
-        }
-      } else {
-        // 다른 진입점은 항상 wizard 부터 (이전 결과 클리어).
-        sessionStorage.removeItem('recommend_result');
+      const saved = sessionStorage.getItem('recommend_result');
+      if (saved) {
+        const parsed = JSON.parse(saved) as RecommendResponse;
+        setResult(parsed);
+        setPhase('result');
       }
     } catch {
-      // 손상된 JSON 또는 SSR 환경은 무시하고 wizard 진입
+      // 손상된 JSON → 다음 추천 호출 시 덮어쓰여짐. 일단 wizard 시작.
+      sessionStorage.removeItem('recommend_result');
     }
     return () => {
       if (progressIntervalRef.current !== null) {
@@ -203,7 +198,7 @@ export default function RecommendPage() {
               음식 종류 · 선호 국가 · 알레르기 조건을 바꿔보세요.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Button variant="primary" onClick={() => setPhase('wizard')}>
+              <Button variant="primary" onClick={() => { sessionStorage.removeItem('recommend_result'); setPhase('wizard'); }}>
                 조건 다시 설정
               </Button>
               <Link
@@ -228,7 +223,7 @@ export default function RecommendPage() {
               <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight">
                 오늘의 <span className="ink-underline">추천</span>
               </h1>
-              <Button variant="secondary" onClick={() => setPhase('wizard')}>
+              <Button variant="secondary" onClick={() => { sessionStorage.removeItem('recommend_result'); setPhase('wizard'); }}>
                 조건 다시 설정
               </Button>
             </div>

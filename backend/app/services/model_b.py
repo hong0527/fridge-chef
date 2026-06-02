@@ -124,7 +124,15 @@ async def recommend_missing_ingredients(
         for score, r, have, missing in pre
     ]
     whitelist = repo.whitelist_ids()
-    gemini_result = await gemini_select_top3(pre_payload, user_context=user_context)
+    # user_context 에 사용자 선호(country/food_type/spicy) 힌트 추가 → Gemini 가 매칭
+    # reasoning 가능. user_context 가 빈 문자열이면 선호만 사용.
+    ctx_enriched = user_context.strip()
+    pref_hint = (
+        f"선호: {preferences.get('country', '한식')}·"
+        f"{preferences.get('food_type', '메인요리')}·맵기{preferences.get('spicy', 3)}"
+    )
+    ctx_enriched = f"{ctx_enriched} | {pref_hint}" if ctx_enriched else pref_hint
+    gemini_result = await gemini_select_top3(pre_payload, user_context=ctx_enriched)
 
     # 7단계: 화이트리스트 검증 (NFR-EVAL-002 완화 — 학부 시연용)
     # selected 가 whitelist 안에 있으면 채택. citation_ids 누락 시에도 selected 사용
