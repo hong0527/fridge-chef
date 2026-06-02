@@ -27,18 +27,26 @@ export default function RecommendPage() {
   // Browser setInterval 반환은 number — @types/node 의 NodeJS.Timeout 와 혼동 방지
   const progressIntervalRef = useRef<number | null>(null);
 
-  // 마운트 시: sessionStorage 에서 직전 추천 결과 복원
-  // (메뉴 상세 → 뒤로가기 시 결과 화면 유지 — 사용자 시연 피드백).
+  // 마운트 시: referrer 기반 분기 (사용자 시연 피드백 반영).
+  //   - 메뉴 상세(/recipe/*) 에서 뒤로가기 → 결과 화면 복원
+  //   - 다른 페이지(/fridge, /allergies, /)에서 진입 → wizard 시작 (sessionStorage 클리어)
   useEffect(() => {
     try {
-      const saved = sessionStorage.getItem('recommend_result');
-      if (saved) {
-        const parsed = JSON.parse(saved) as RecommendResponse;
-        setResult(parsed);
-        setPhase('result');
+      const ref = typeof document !== 'undefined' ? document.referrer : '';
+      const fromRecipeDetail = ref.includes('/recipe/');
+      if (fromRecipeDetail) {
+        const saved = sessionStorage.getItem('recommend_result');
+        if (saved) {
+          const parsed = JSON.parse(saved) as RecommendResponse;
+          setResult(parsed);
+          setPhase('result');
+        }
+      } else {
+        // 다른 진입점은 항상 wizard 부터 (이전 결과 클리어).
+        sessionStorage.removeItem('recommend_result');
       }
     } catch {
-      // 손상된 JSON 은 무시하고 wizard 진입
+      // 손상된 JSON 또는 SSR 환경은 무시하고 wizard 진입
     }
     return () => {
       if (progressIntervalRef.current !== null) {
