@@ -27,6 +27,8 @@ import {
   searchIngredients,
   recommend,
   getRecipe,
+  getFavorites,
+  signup,
 } from '@/lib/api';
 
 const mock = new MockAdapter(api);
@@ -238,5 +240,41 @@ describe('getRecipe 404 (AT-006)', () => {
     const err = await getRecipe('nonexistent').catch((e) => e);
     expect(axios.isAxiosError(err)).toBe(true);
     expect(err.response.status).toBe(404);
+  });
+});
+
+// ──────────────────────────────────────────────
+// AT-007: 즐겨찾기 API 함수 (이슈 #49 신규)
+// ──────────────────────────────────────────────
+describe('getFavorites (AT-007)', () => {
+  it('GET /favorites를 호출하고 FavoriteListResponse를 반환한다', async () => { // NFR-USE-001
+    const favData = { items: [], total: 0 };
+    mock.onGet('/favorites').reply(200, favData);
+    const result = await getFavorites();
+    expect(result).toEqual(favData);
+  });
+});
+
+// ──────────────────────────────────────────────
+// AT-008: 회원가입 API 함수
+// ──────────────────────────────────────────────
+describe('signup (AT-008)', () => {
+  it('POST /auth/signup 호출 후 UserPublic을 반환하고 알레르기를 localStorage에 저장한다', async () => { // NFR-USE-001, NFR-EXT-001
+    const userPublic = {
+      id: 1,
+      email: 'new@a.com',
+      nickname: '홍',
+      allergies: ['땅콩'],
+      is_email_verified: false,
+    };
+    mock.onPost('/auth/signup').reply(201, userPublic);
+
+    const result = await signup('new@a.com', 'pw1234', '홍', ['땅콩']);
+
+    expect(result).toEqual(userPublic);
+    // api.ts:208 — 응답의 allergies가 fc_user_allergies에 저장되어야 한다
+    expect(localStorage.getItem('fc_user_allergies')).toBe(JSON.stringify(['땅콩']));
+    // signup은 토큰을 반환하지 않으므로 fc_token이 변경되지 않아야 한다
+    expect(localStorage.getItem('fc_token')).toBeNull();
   });
 });
