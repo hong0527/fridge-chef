@@ -214,17 +214,19 @@ async def recommend_cold_storage(
         base_pool.append((r, overlap))
 
     # 2단계: Stratified retrieval — 사용자 선호 일치 단계로 풀 좁힘
-    # tier3에 theme 조건 강제 추가 — '한식 디저트' 요청 시 '한식 메인' 침묵 폴백 차단 (CRITICAL #1).
-    # difficulty 폴백은 가중합 score에 맡김.
+    # tier3 == tier2 dead code 제거 (Critic MAJOR #2). 단계적 폴백으로 후보 풀 확대.
+    # 사용자 의도 '중식→한식 차단' 보존을 위해 country는 모든 tier에서 강제 유지.
+    # theme/difficulty 만 단계적으로 완화해 후보 풀을 1~3개 → 5~10개로 확대 →
+    # TF-IDF 가중치 0.20 이 의미 있는 변별력을 발휘할 수 있는 후보 수 확보.
     tier1 = [(r, o) for r, o in base_pool
              if r.country == c_pref and r.theme == t_pref and r.difficulty_level == d_pref]
     tier2 = [(r, o) for r, o in base_pool if r.country == c_pref and r.theme == t_pref]
-    tier3 = [(r, o) for r, o in base_pool if r.country == c_pref and r.theme == t_pref]
+    tier3 = [(r, o) for r, o in base_pool if r.country == c_pref]  # theme 완화
 
     selected: list[tuple[Recipe, float]] = []
     seen_ids: set[str] = set()
-    # base_pool 폴백 제거 — "중식 선택했는데 일식 나옴" 사용자 침묵 위반 차단(CRITICAL #C2).
-    # tier3까지 = 사용자 country 일치 강제. 후보 부족하면 빈 결과 반환이 더 정직.
+    # base_pool(전체) 폴백 제거 — "중식 선택했는데 일식 나옴" 사용자 침묵 위반 차단(CRITICAL #C2).
+    # country 일치 강제. 후보 부족하면 빈 결과 반환이 더 정직.
     for tier in (tier1, tier2, tier3):
         for r, o in tier:
             if r.recipe_id not in seen_ids:
@@ -236,8 +238,12 @@ async def recommend_cold_storage(
     # 3단계: 가중합 + TF-IDF 임베딩 코사인 유사도 결합 (Issue #72 — AI 기반 추천 강화).
     # tfidf_score 는 사용자 보유 재료 + user_context 자연어를 1667 코퍼스 벡터 공간에서 매칭.
     # 가중치 0.20 = 학계 표준 (Aggarwal §4.4 weighted sum + content-based hybrid).
+    # user_context 는 expand_context 로 코퍼스 도메인 키워드 확장 후 입력
+    # (Salton & McGill 1983 §6 Query Expansion — OOV 어휘 흡수).
+    from app.services.context_expander import expand_context
     from app.services.embedding_service import score_query
-    query_text = f"{' '.join(fridge_norm)} {user_context}".strip()
+    expanded_ctx = expand_context(user_context)
+    query_text = f"{' '.join(fridge_norm)} {expanded_ctx}".strip()
     tfidf_scores = score_query(query_text)
     scored = [
         (

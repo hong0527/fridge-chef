@@ -79,8 +79,12 @@ async def recommend_missing_ingredients(
 
     # TF-IDF 임베딩 코사인 유사도 (Issue #72) — 사용자 보유 재료 + user_context 자연어를
     # 1667 코퍼스 벡터 공간에서 매칭. 가중치 0.20 = 학계 표준 (Aggarwal §4.4 + Salton 1983).
+    # user_context 는 expand_context 로 코퍼스 도메인 키워드 확장 후 입력
+    # (Manning et al. 2008 §9 Query Expansion — OOV 어휘 흡수).
+    from app.services.context_expander import expand_context
     from app.services.embedding_service import score_query
-    tfidf_query = f"{' '.join(fridge_norm_list)} {user_context}".strip()
+    expanded_ctx_b = expand_context(user_context)
+    tfidf_query = f"{' '.join(fridge_norm_list)} {expanded_ctx_b}".strip()
     tfidf_scores = score_query(tfidf_query)
 
     candidates: list[tuple[float, Recipe, list[str], list[str]]] = []
