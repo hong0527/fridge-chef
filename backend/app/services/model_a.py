@@ -150,7 +150,10 @@ def _weighted_match_score(prefs: dict, r: Recipe, max_cook: int, overlap: float)
 
 
 # 부분 매칭 임계값 — 최소 50% 재료 보유 시 후보로 고려 (Aggarwal §4.5 Jaccard threshold).
-_OVERLAP_THRESHOLD = 0.5
+# SDD §3.2 Model A — '재료를 완전히 가진(missing 0) 레시피만 추천' (사용자 의도).
+# 사용자 보유(BASIC_SEASONINGS 제외) ⊇ 레시피 주재료. 부분 매칭은 Model B 영역.
+# 하드코드 — env override 금지 (Render Environment에 옛 값 0.4/0.5 잔존 위험 차단).
+_OVERLAP_THRESHOLD = 1.0
 
 
 async def recommend_cold_storage(
@@ -181,12 +184,24 @@ async def recommend_cold_storage(
     t_pref = _THEME_MAP.get(str(preferences.get("food_type", "메인요리")), "main")
     d_pref = _DIFFICULTY_MAP.get(str(preferences.get("difficulty", "초보")), 1)
 
-    # 1단계: base 필터 (안전·핵심 — overlap ≥ 0.5, 알레르기 차단, 조리시간)
+    # 1단계: base 필터 (안전·핵심 — overlap ≥ 0.4, 알레르기 차단, 조리시간, 매운맛)
+    # 매운맛 hard filter — 사용자 시연 피드백 ('매운맛 5 선택해도 1점 레시피 나옴').
+    # 차이 2 이내 통과 ("5점 원하는데 3점은 OK, 1~2점은 차단").
+    s_pref_int = int(preferences.get("spicy", 3))
     base_pool: list[tuple[Recipe, float]] = []
     for r in repo.list_all():
         if allergies and any(a in allergies for a in r.allergens):
             continue
         if r.cook_min > max_cook:
+            continue
+        # 매운맛 비대칭 hard filter — '안 매운(1·2)' 사용자에 매콤(3)이 노출되는 의도 위반 차단.
+        # spicy ≤ 2 → 차이 1 이내, spicy ≥ 3 → 차이 2 이내.
+        spicy_tol = 1 if s_pref_int <= 2 else 2
+        if abs(r.spicy - s_pref_int) > spicy_tol:
+            continue
+        # difficulty hard filter — 초보 사용자에게 고급 추천 침묵 차단 (MAJOR).
+        # 차이 1 이내만 통과 (초보→중급 OK, 초보→고급 차단).
+        if abs(r.difficulty_level - d_pref) > 1:
             continue
         overlap = _ingredient_overlap_ratio(fridge_norm, r.whole_ingredients)
         if overlap < _OVERLAP_THRESHOLD:
@@ -194,14 +209,18 @@ async def recommend_cold_storage(
         base_pool.append((r, overlap))
 
     # 2단계: Stratified retrieval — 사용자 선호 일치 단계로 풀 좁힘
+    # tier3에 theme 조건 강제 추가 — '한식 디저트' 요청 시 '한식 메인' 침묵 폴백 차단 (CRITICAL #1).
+    # difficulty 폴백은 가중합 score에 맡김.
     tier1 = [(r, o) for r, o in base_pool
              if r.country == c_pref and r.theme == t_pref and r.difficulty_level == d_pref]
     tier2 = [(r, o) for r, o in base_pool if r.country == c_pref and r.theme == t_pref]
-    tier3 = [(r, o) for r, o in base_pool if r.country == c_pref]
+    tier3 = [(r, o) for r, o in base_pool if r.country == c_pref and r.theme == t_pref]
 
     selected: list[tuple[Recipe, float]] = []
     seen_ids: set[str] = set()
-    for tier in (tier1, tier2, tier3, base_pool):
+    # base_pool 폴백 제거 — "중식 선택했는데 일식 나옴" 사용자 침묵 위반 차단(CRITICAL #C2).
+    # tier3까지 = 사용자 country 일치 강제. 후보 부족하면 빈 결과 반환이 더 정직.
+    for tier in (tier1, tier2, tier3):
         for r, o in tier:
             if r.recipe_id not in seen_ids:
                 selected.append((r, o))

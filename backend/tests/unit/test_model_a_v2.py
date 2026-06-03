@@ -83,23 +83,30 @@ class TestDiffMatchRanking:
         assert 0.05 < delta < 0.08, f"기대 차이 ≈ 0.065, 실제 {delta:.4f}"
 
     @pytest.mark.asyncio
-    async def test_ma_new_002_one_step_better_than_two(self, diff_bonus_repo) -> None:
-        """MA-NEW-002 — 1단계 차이(db002)가 2단계 차이(db003)보다 점수 높음."""
+    async def test_ma_new_002_high_diff_filtered_out(self, diff_bonus_repo) -> None:
+        """MA-NEW-002 — 2단계 차이(고급)는 difficulty hard filter로 차단되어야 함.
+
+        새 정책: |r.difficulty_level - d_pref| > 1 차단. 초보(1) 선호 사용자에게
+        고급(3) 레시피 노출 침묵 위반 차단 (사용자 시연 피드백 반영).
+        """
         out = await recommend_cold_storage(
             fridge_ingredients=_FRIDGE,
             preferences=_PREFS,
             user_allergies=[],
             repo=diff_bonus_repo,
         )
-        s2 = _score_for(out, "db002")
-        s3 = _score_for(out, "db003")
-        assert s2 > s3, f"1단계 차이 score {s2} ≤ 2단계 차이 score {s3}"
-        delta = s2 - s3
-        assert 0.05 < delta < 0.08, f"기대 차이 ≈ 0.065, 실제 {delta:.4f}"
+        ids = [item["recipe_id"] for item in out]
+        assert "db003" not in ids, (
+            f"고급 레시피(db003)는 hard filter로 차단되어야 함. 실제: {ids}"
+        )
 
     @pytest.mark.asyncio
-    async def test_ma_new_003_diff_contribution_total(self, diff_bonus_repo) -> None:
-        """MA-NEW-003 — 일치 vs 2단계 차이 score 차이 ≈ 0.13 (diff 가중치 전체)."""
+    async def test_ma_new_003_diff_contribution_one_step(self, diff_bonus_repo) -> None:
+        """MA-NEW-003 — 일치(db001) vs 1단계 차이(db002) score 차이 ≈ 0.065.
+
+        새 정책 후 2단계 차이는 차단되므로 1단계 차이로 회귀 검증. 가중합에서
+        difficulty 가중치 0.13 × diff_match 0.5 = 0.065 차이 기대 (jitter ±0.001).
+        """
         out = await recommend_cold_storage(
             fridge_ingredients=_FRIDGE,
             preferences=_PREFS,
@@ -107,9 +114,9 @@ class TestDiffMatchRanking:
             repo=diff_bonus_repo,
         )
         s1 = _score_for(out, "db001")
-        s3 = _score_for(out, "db003")
-        delta = s1 - s3
-        assert 0.12 < delta < 0.15, f"기대 차이 ≈ 0.13, 실제 {delta:.4f}"
+        s2 = _score_for(out, "db002")
+        delta = s1 - s2
+        assert 0.05 < delta < 0.08, f"기대 차이 ≈ 0.065, 실제 {delta:.4f}"
 
 
 class TestDiffBonusRanking:
@@ -117,10 +124,9 @@ class TestDiffBonusRanking:
 
     @pytest.mark.asyncio
     async def test_ma_new_004_difficulty_match_ranks_first(self, diff_bonus_repo) -> None:
-        """MA-NEW-004 — 사용자 난이도와 일치하는 레시피가 상위에 위치해야 함.
+        """MA-NEW-004 — 사용자 난이도 일치 레시피가 1위 + 고급은 hard filter 차단.
 
-        사용자 초보(1) 선호 시 예상 순위:
-          db001(초보, score≈1.15) > db002(중급, score≈0.969) > db003(고급, score≈0.894)
+        새 정책: 초보(1) 선호 시 db003(고급)은 차단, db001(일치) 1위, db002(1단계) 2위.
         """
         out = await recommend_cold_storage(
             fridge_ingredients=_FRIDGE,
@@ -133,6 +139,6 @@ class TestDiffBonusRanking:
         assert ids[0] == "db001", (
             f"사용자 난이도(초보)와 일치하는 db001이 1위여야 함, 실제 순서: {ids}"
         )
-        assert ids.index("db002") < ids.index("db003"), (
-            "1단계 차이 레시피(db002)가 2단계 차이 레시피(db003)보다 상위여야 함"
+        assert "db003" not in ids, (
+            "고급(db003)은 difficulty hard filter로 차단되어야 함"
         )

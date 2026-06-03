@@ -19,8 +19,6 @@ import {
 
 type Phase = 'wizard' | 'loading' | 'result' | 'error';
 
-const SESSION_KEY = 'recommend_result';
-
 export default function RecommendPage() {
   const toast = useToast();
   const [phase, setPhase] = useState<Phase>('wizard');
@@ -29,21 +27,22 @@ export default function RecommendPage() {
   // Browser setInterval 반환은 number — @types/node 의 NodeJS.Timeout 와 혼동 방지
   const progressIntervalRef = useRef<number | null>(null);
 
-  // 이전 결과 복원 (레시피 상세 → 뒤로가기 시 결과 유지)
+  // 마운트 시: 저장된 결과 있으면 복원 (사용자 시연 피드백 — referrer 신호 신뢰 불가).
+  //   - sessionStorage에 'recommend_result' 있으면 결과 화면 복원
+  //   - 명시적 '다시 추천' 버튼 클릭 시에만 클리어 (handleSubmit + result 헤더 버튼)
+  //   - 다른 페이지(/fridge, /allergies)에서 진입해도 결과 유지 — 뒤로가기 영구 깨짐 차단
   useEffect(() => {
-    const saved = sessionStorage.getItem(SESSION_KEY);
-    if (saved) {
-      try {
-        setResult(JSON.parse(saved));
+    try {
+      const saved = sessionStorage.getItem('recommend_result');
+      if (saved) {
+        const parsed = JSON.parse(saved) as RecommendResponse;
+        setResult(parsed);
         setPhase('result');
-      } catch {
-        sessionStorage.removeItem(SESSION_KEY);
       }
+    } catch {
+      // 손상된 JSON → 다음 추천 호출 시 덮어쓰여짐. 일단 wizard 시작.
+      sessionStorage.removeItem('recommend_result');
     }
-  }, []);
-
-  // 컴포넌트 언마운트 시 in-flight interval cleanup (memory leak 방지)
-  useEffect(() => {
     return () => {
       if (progressIntervalRef.current !== null) {
         window.clearInterval(progressIntervalRef.current);
@@ -51,6 +50,17 @@ export default function RecommendPage() {
       }
     };
   }, []);
+
+  // 결과 변경 시 sessionStorage 동기화 (탭 닫으면 자동 정리되는 휘발성 스토어).
+  useEffect(() => {
+    if (result) {
+      try {
+        sessionStorage.setItem('recommend_result', JSON.stringify(result));
+      } catch {
+        // quota / private 모드 무시
+      }
+    }
+  }, [result]);
 
   const handleSubmit = async (prefs: Preferences) => {
     setPhase('loading');
@@ -64,7 +74,6 @@ export default function RecommendPage() {
       const fridge = await getFridge();
       const ingredients = fridge.items.map((i) => i.raw_name);
       const data = await recommend(ingredients, prefs);
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(data));
       setResult(data);
       setPhase('result');
       const total = data.model_a.length + data.model_b.length;
@@ -93,7 +102,7 @@ export default function RecommendPage() {
   return (
     <main className="min-h-screen bg-cream-100 dark:bg-clay-900">
       <header className="max-w-7xl mx-auto px-6 lg:px-12 py-6 flex items-center justify-between">
-        <BrandLockup size="md" href="/fridge" />
+        <BrandLockup size="md" />
         <Link
           href="/fridge"
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-clay-700 dark:text-cream-200 hover:text-gochu-500"
@@ -165,31 +174,8 @@ export default function RecommendPage() {
               </div>
             </div>
 
-            {/* Skeleton previews */}
-            <div className="space-y-10">
-              <div>
-                <h3 className="font-display text-lg font-bold mb-3 flex items-center gap-2">
-                  <Refrigerator className="h-5 w-5 text-herb-500" />
-                  냉털 레시피
-                </h3>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <RecipeCardSkeleton key={i} type="cold" />
-                  ))}
-                </div>
-              </div>
-              <div>
-                <h3 className="font-display text-lg font-bold mb-3 flex items-center gap-2">
-                  <ChefHat className="h-5 w-5 text-mustard-500" />
-                  부족재료 레시피
-                </h3>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <RecipeCardSkeleton key={i} type="missing" />
-                  ))}
-                </div>
-              </div>
-            </div>
+            {/* skeleton 제거 — 사용자 피드백: 추천중인데 결과 카드처럼 보임 (혼란 유발).
+                loading 중엔 텍스트+프로그레스바만 표시, 결과 도착 시 카드 표시. */}
           </motion.section>
         )}
 
@@ -212,7 +198,7 @@ export default function RecommendPage() {
               음식 종류 · 선호 국가 · 알레르기 조건을 바꿔보세요.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Button variant="primary" onClick={() => { sessionStorage.removeItem(SESSION_KEY); setPhase('wizard'); }}>
+              <Button variant="primary" onClick={() => { sessionStorage.removeItem('recommend_result'); setPhase('wizard'); }}>
                 조건 다시 설정
               </Button>
               <Link
@@ -237,7 +223,7 @@ export default function RecommendPage() {
               <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight">
                 오늘의 <span className="ink-underline">추천</span>
               </h1>
-              <Button variant="secondary" onClick={() => { sessionStorage.removeItem(SESSION_KEY); setPhase('wizard'); }}>
+              <Button variant="secondary" onClick={() => { sessionStorage.removeItem('recommend_result'); setPhase('wizard'); }}>
                 조건 다시 설정
               </Button>
             </div>
@@ -305,7 +291,7 @@ export default function RecommendPage() {
               잠시 후 다시 시도해주세요.
             </p>
             <div className="mt-6 flex justify-center gap-2">
-              <Button variant="secondary" onClick={() => { sessionStorage.removeItem(SESSION_KEY); setPhase('wizard'); }}>
+              <Button variant="secondary" onClick={() => setPhase('wizard')}>
                 다시 시도
               </Button>
               <Link

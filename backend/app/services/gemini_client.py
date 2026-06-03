@@ -17,31 +17,59 @@ from app.core.config import settings
 _logger = logging.getLogger(__name__)
 
 
+_COUNTRY_KR = {"kr": "한식", "cn": "중식", "jp": "일식", "west": "양식", "etc": "기타"}
+_THEME_KR = {"main": "메인", "side": "반찬", "soup": "국·탕", "dessert": "디저트", "drink": "음료"}
+_DIFF_KR = {1: "초보", 2: "중급", 3: "고급"}
+
+
 def _build_prompt(candidates: list[dict], user_context: str) -> str:
-    """JSON-only 응답을 강제하는 시스템 프롬프트."""
-    candidate_lines = []
-    for c in candidates:
-        candidate_lines.append(
-            f"- recipe_id={c['recipe_id']} | name={c['name']} | cook_min={c['cook_min']} | "
-            f"have={c.get('have', [])} | missing={c.get('missing', [])} | "
-            f"final_score={c.get('final_score', 0)}"
+    """JSON-only 큐레이터 프롬프트 — 메타데이터(맵기·국가·테마·난이도) 전달 + reason 규칙 강제.
+
+    이전 버전: name/cook_min/have/missing/final_score 만 전달 → Gemini가 일반화 회피.
+    Critic 결과 반영 (사용자 시연 피드백: 'reason 빈약·일반화').
+    """
+    lines = []
+    for i, c in enumerate(candidates, 1):
+        have = c.get("have", []) or []
+        missing = c.get("missing", []) or []
+        lines.append(
+            f"[{i}] id={c['recipe_id']} | {c['name']} | "
+            f"{_COUNTRY_KR.get(c.get('country', 'kr'), '한식')}·"
+            f"{_THEME_KR.get(c.get('theme', 'main'), '메인')} | "
+            f"조리 {c['cook_min']}분 | 맵기 {c.get('spicy', 1)}/5 | "
+            f"난이도 {_DIFF_KR.get(c.get('difficulty_level', 1), '초보')} | "
+            f"보유재료({len(have)}): {', '.join(have) if have else '없음'} | "
+            f"부족재료({len(missing)}): {', '.join(missing) if missing else '없음'}"
         )
-    candidate_block = "\n".join(candidate_lines)
+    candidate_block = "\n".join(lines)
     ctx = user_context.strip() or "(특이사항 없음)"
-    return (
-        "당신은 한국어 요리 추천 큐레이터입니다.\n"
-        "아래 후보 레시피 중에서 사용자의 문맥과 가장 잘 어울리는 3개를 골라\n"
-        "JSON 객체만 출력하세요. 마크다운, 설명, 코드펜스 금지.\n\n"
-        f"사용자 문맥: {ctx}\n\n"
-        "후보:\n"
-        f"{candidate_block}\n\n"
-        "출력 스키마 (반드시 이 키만 사용):\n"
-        '{\n'
-        '  "selected": ["recipe_id", "recipe_id", "recipe_id"],\n'
-        '  "reasons":  ["한국어 한 문장 이유 1", "이유 2", "이유 3"],\n'
-        '  "citation_ids": ["selected와 동일한 3개 recipe_id"]\n'
-        '}\n'
-    )
+    return f"""당신은 한국어 요리 큐레이터입니다. 후보 3개를 골라 각 추천 이유를 작성하세요.
+
+[사용자 문맥]
+{ctx}
+
+[후보 목록]
+{candidate_block}
+
+[reason 작성 규칙 — 반드시 준수]
+1) 각 reason 은 한국어 2~3문장, 80~140자.
+2) 첫 문장: 사용자 문맥("{ctx}")의 키워드를 직접 인용하거나 명시적으로 연결.
+3) 둘째 문장: 이 레시피의 매력 포인트 1가지 (맛 특징·식감·향·풍미·궁합 등 구체).
+4) (선택) 셋째 문장: 보유재료·조리시간·매운맛 중 1개를 구체 수치·이름으로 활용 제안.
+5) 금지어: "맛있는", "인기", "추천합니다", "좋습니다", "높은 점수" (일반화 회피).
+6) 3개 reason 은 서로 다른 매력 포인트 축(맛·재료 활용·조리 편의 등)으로 차별화.
+
+[좋은 예시]
+사용자 문맥: "비 오는 날 따뜻하게"
+reason: "비 오는 날 마음까지 데워주는 든든한 한 그릇입니다. 진한 된장 국물에 두부의 부드러운 식감이 어우러져 깊은 풍미가 일품이죠. 보유한 두부·대파만으로 25분 만에 완성 가능합니다."
+
+[출력 — JSON 객체만, 마크다운·코드펜스·설명 금지]
+{{
+  "selected": ["recipe_id", "recipe_id", "recipe_id"],
+  "reasons":  ["규칙을 따른 2문장 이유", "이유 2", "이유 3"],
+  "citation_ids": ["selected와 동일한 3개 recipe_id"]
+}}
+"""
 
 
 def _parse_response_text(text: str) -> dict[str, Any] | None:
