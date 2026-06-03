@@ -19,8 +19,10 @@ class Settings:
     top_k_model_b_final: int = int(os.getenv("TOP_K_MODEL_B_FINAL", "3"))
     missing_ingredients_max: int = int(os.getenv("MISSING_INGREDIENTS_MAX", "5"))
     frontend_url: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
-    mailpit_host: str = os.getenv("MAILPIT_HOST", "localhost")
-    mailpit_port: int = int(os.getenv("MAILPIT_PORT", "1025"))
+    smtp_host: str = os.getenv("SMTP_HOST", "localhost")
+    smtp_port: int = int(os.getenv("SMTP_PORT", "1025"))
+    smtp_user: str = os.getenv("SMTP_USER", "")
+    smtp_password: str = os.getenv("SMTP_PASSWORD", "")
 
 
 settings = Settings()
