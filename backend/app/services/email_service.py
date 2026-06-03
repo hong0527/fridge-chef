@@ -29,7 +29,10 @@ def send_verification_email(to: str, token: str) -> None:
         msg["To"] = to
         msg.attach(MIMEText(html, "html"))
 
-        with smtplib.SMTP(settings.mailpit_host, settings.mailpit_port) as smtp:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as smtp:
+            if settings.smtp_user:
+                smtp.starttls()
+                smtp.login(settings.smtp_user, settings.smtp_password)
             smtp.sendmail(msg["From"], [to], msg.as_string())
     except Exception as exc:
         raise EmailError(f"이메일 발송 실패: {exc}") from exc

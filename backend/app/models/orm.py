@@ -43,6 +43,9 @@ class User(Base):
     ratings: Mapped[list[Rating]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    favorites: Mapped[list[Favorite]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class FridgeIngredient(Base):
@@ -86,6 +89,23 @@ class RecipeRow(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class Favorite(Base):
+    """사용자 즐겨찾기 레시피."""
+
+    __tablename__ = "favorites"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    recipe_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    user: Mapped[User] = relationship(back_populates="favorites")
 
 
 class Rating(Base):

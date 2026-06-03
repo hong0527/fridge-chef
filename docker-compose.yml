@@ -1,4 +1,6 @@
-# FridgeChef 로컬 개발 스택 (NFR-OPS-001 컨테이너 배포)
+# FridgeChef 공통 베이스 스택
+# 로컬: docker compose up
+# 운영: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 services:
   postgres:
     image: postgres:15-alpine
@@ -58,18 +60,13 @@ services:
       TOP_K_MODEL_B_FINAL: ${TOP_K_MODEL_B_FINAL:-3}
       MISSING_INGREDIENTS_MAX: ${MISSING_INGREDIENTS_MAX:-5}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
-      MAILPIT_HOST: mailpit
-      MAILPIT_PORT: 1025
+      SMTP_HOST: ${SMTP_HOST:-localhost}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SKIP_EMAIL_VERIFICATION: ${SKIP_EMAIL_VERIFICATION:-false}
     ports:
       - "8000:8000"
-
-  mailpit:
-    image: axllent/mailpit:latest
-    container_name: fridgechef-mailpit
-    restart: unless-stopped
-    ports:
-      - "8025:8025"
-      - "1025:1025"
 
   frontend:
     build:
@@ -80,7 +77,7 @@ services:
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     ports:
       - "3000:3000"
 

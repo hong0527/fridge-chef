@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Clock,
@@ -18,18 +19,28 @@ import { BrandLockup } from '@/components/Brand';
 import { Button } from '@/components/Button';
 import { FridgeChip } from '@/components/FridgeChip';
 import { useToast } from '@/components/Toast';
-import { apiErrorMessage, getAllergies, getRecipe, type Recipe } from '@/lib/api';
-
-const FAVORITE_ENABLED = false; // Could 우선순위 — SRS v1.10
+import {
+  addFavorite,
+  apiErrorMessage,
+  checkFavorite,
+  getAllergies,
+  getRecipe,
+  getToken,
+  removeFavorite,
+  type Recipe,
+} from '@/lib/api';
 
 interface RecipePageProps {
   params: { id: string };
 }
 
 export default function RecipeDetailPage({ params }: RecipePageProps) {
+  const router = useRouter();
   const toast = useToast();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
   // 클라이언트 환경 (회원 알레르기) — SRS: 사용자 알레르기 일치 시 경고
   const [userAllergies, setUserAllergies] = useState<string[]>([]);
 
@@ -47,6 +58,9 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
     })();
     // SSR-safe helper (lib/api.ts) — typeof window guard 일관성 유지
     setUserAllergies(getAllergies());
+    if (getToken()) {
+      checkFavorite(params.id).then(({ is_favorite }) => setIsFavorite(is_favorite)).catch(() => {});
+    }
     return () => {
       alive = false;
     };
@@ -55,6 +69,26 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
   const matchedAllergies =
     recipe?.allergens?.filter((a) => userAllergies.includes(a)) ?? [];
+
+  const handleFavoriteToggle = async () => {
+    if (!getToken()) { toast.show('로그인이 필요합니다.', 'info'); return; }
+    setFavoriteLoading(true);
+    try {
+      if (isFavorite) {
+        await removeFavorite(recipe!.recipe_id);
+        setIsFavorite(false);
+        toast.show('즐겨찾기에서 제거했습니다.', 'success');
+      } else {
+        await addFavorite(recipe!.recipe_id);
+        setIsFavorite(true);
+        toast.show('즐겨찾기에 추가했습니다.', 'success');
+      }
+    } catch (err) {
+      toast.show(apiErrorMessage(err), 'error');
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
 
   if (loading) {
     return <RecipeDetailSkeleton />;
@@ -80,13 +114,13 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   return (
     <main className="min-h-screen bg-cream-100 dark:bg-clay-900">
       <header className="max-w-7xl mx-auto px-6 lg:px-12 py-6 flex items-center justify-between">
-        <BrandLockup size="md" />
-        <Link
-          href="/recommend"
+        <BrandLockup size="md" href="/fridge" />
+        <button
+          onClick={() => router.back()}
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-clay-700 dark:text-cream-200 hover:text-gochu-500"
         >
           <ArrowLeft className="h-4 w-4" /> 결과로
-        </Link>
+        </button>
       </header>
 
       <article className="max-w-4xl mx-auto px-6 lg:px-8 pb-24">
@@ -95,9 +129,9 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="grid md:grid-cols-2 gap-8 items-stretch"
+          className="grid md:grid-cols-2 gap-8 items-start"
         >
-          <div className="relative aspect-[4/3] md:aspect-square rounded-3xl overflow-hidden border-2 border-clay-900 dark:border-cream-100 bg-cream-200 dark:bg-clay-700 shadow-sticker">
+          <div className="relative aspect-square rounded-3xl overflow-hidden border-2 border-clay-900 dark:border-cream-100 bg-cream-200 dark:bg-clay-700 shadow-sticker">
             {recipe.image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -189,12 +223,14 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             <div className="mt-6">
               <Button
                 variant="secondary"
-                disabled={!FAVORITE_ENABLED}
-                aria-label={FAVORITE_ENABLED ? '즐겨찾기 추가' : '즐겨찾기는 추후 지원 예정'}
-                onClick={() => toast.show('즐겨찾기 기능은 곧 추가될 예정입니다.', 'info')}
+                disabled={favoriteLoading}
+                aria-label={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+                onClick={handleFavoriteToggle}
               >
-                <Star className="h-4 w-4" />
-                즐겨찾기 추가
+                <span className="flex items-center gap-2">
+                  <Star className={`h-4 w-4 ${isFavorite ? 'fill-gochu-500 text-gochu-500' : ''}`} />
+                  {isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+                </span>
               </Button>
             </div>
           </div>
@@ -266,7 +302,7 @@ function Stat({
   return (
     <div className="rounded-2xl border-2 border-clay-900/15 dark:border-cream-100/15 bg-cream-50 dark:bg-clay-800 px-3 py-2.5">
       <dt className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-clay-500 font-bold">
-        <span className="h-3.5 w-3.5" aria-hidden="true">
+        <span className="shrink-0 [&>svg]:h-3.5 [&>svg]:w-3.5" aria-hidden="true">
           {icon}
         </span>
         {label}
@@ -282,7 +318,7 @@ function RecipeDetailSkeleton() {
   return (
     <main className="min-h-screen bg-cream-100 dark:bg-clay-900">
       <header className="max-w-7xl mx-auto px-6 lg:px-12 py-6">
-        <BrandLockup size="md" />
+        <BrandLockup size="md" href="/fridge" />
       </header>
       <div className="max-w-4xl mx-auto px-6 lg:px-8 pb-24">
         <div className="grid md:grid-cols-2 gap-8">
