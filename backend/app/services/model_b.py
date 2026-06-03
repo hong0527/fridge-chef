@@ -77,6 +77,12 @@ async def recommend_missing_ingredients(
     t_pref = _THEME_MAP.get(str(preferences.get("food_type", "메인요리")), "main")
     spicy_tol_b = 1 if s_pref_int <= 2 else 2
 
+    # TF-IDF 임베딩 코사인 유사도 (Issue #72) — 사용자 보유 재료 + user_context 자연어를
+    # 1667 코퍼스 벡터 공간에서 매칭. 가중치 0.20 = 학계 표준 (Aggarwal §4.4 + Salton 1983).
+    from app.services.embedding_service import score_query
+    tfidf_query = f"{' '.join(fridge_norm_list)} {user_context}".strip()
+    tfidf_scores = score_query(tfidf_query)
+
     candidates: list[tuple[float, Recipe, list[str], list[str]]] = []
     for r in repo.list_all():
         # 2단계: 알레르기 + 조리시간 + 매운맛 + 난이도 + country + theme
@@ -103,10 +109,11 @@ async def recommend_missing_ingredients(
             continue
         if len(r.whole_ingredients) == 0:
             continue
-        # 5단계: 복합 점수
+        # 5단계: 복합 점수 + TF-IDF 가중합 결합 (Issue #72)
         have_ratio = len(have) / len(r.whole_ingredients)
         pref_sim = _cosine(pref_vec, _vec_from_recipe(r, preferences))
-        score = _composite_score(pref_sim, have_ratio, len(missing), max_missing)
+        base_score = _composite_score(pref_sim, have_ratio, len(missing), max_missing)
+        score = 0.80 * base_score + 0.20 * tfidf_scores.get(r.recipe_id, 0.0)
         candidates.append((score, r, have, missing))
 
     # 6-pre: 상위 10개 사전 선별

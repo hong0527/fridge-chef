@@ -161,6 +161,7 @@ async def recommend_cold_storage(
     preferences: dict,
     user_allergies: list[str],
     repo: RecipeRepository | None = None,
+    user_context: str = "",
 ) -> list[dict]:
     """SDD §3.2 모델 A — Stratified Top-K + Jaccard overlap + 가중합 score.
 
@@ -168,6 +169,10 @@ async def recommend_cold_storage(
     1. contains_all hard filter → ingredient overlap ratio (≥ 0.5) — 부분 매칭 허용
     2. country/theme/difficulty Stratified retrieval — 사용자 선호 일치 후보 우선
     3. 가중합 score + jitter — 동률 결정론 해소
+
+    개선 (Issue #72): TF-IDF 코사인 유사도 추가 (0.20 가중치) — user_context 자연어 점수 반영.
+    최종 score = 0.80 * 가중합(선호+overlap) + 0.20 * tfidf(보유재료+user_context vs 1667 코퍼스).
+    Salton & McGill 1983 TF-IDF + Aggarwal 2016 §4.5 Content-Based hybrid 표준.
 
     NFR-EVAL-001 알레르기 0% / NFR-PERF-003 10초.
     """
@@ -228,8 +233,20 @@ async def recommend_cold_storage(
         if len(selected) >= top_k:
             break
 
-    # 3단계: 가중합 score + 정렬
-    scored = [(_weighted_match_score(preferences, r, max_cook, o), r) for r, o in selected]
+    # 3단계: 가중합 + TF-IDF 임베딩 코사인 유사도 결합 (Issue #72 — AI 기반 추천 강화).
+    # tfidf_score 는 사용자 보유 재료 + user_context 자연어를 1667 코퍼스 벡터 공간에서 매칭.
+    # 가중치 0.20 = 학계 표준 (Aggarwal §4.4 weighted sum + content-based hybrid).
+    from app.services.embedding_service import score_query
+    query_text = f"{' '.join(fridge_norm)} {user_context}".strip()
+    tfidf_scores = score_query(query_text)
+    scored = [
+        (
+            0.80 * _weighted_match_score(preferences, r, max_cook, o)
+            + 0.20 * tfidf_scores.get(r.recipe_id, 0.0),
+            r,
+        )
+        for r, o in selected
+    ]
     scored.sort(key=lambda x: (-x[0], x[1].cook_min))
 
     out: list[dict] = []
