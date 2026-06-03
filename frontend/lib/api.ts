@@ -113,7 +113,7 @@ export interface Preferences {
   spicy: number;              // 1-5
   difficulty: string;         // 초보|중급|고급
   diet: boolean;
-  use_saved_allergies: boolean;
+  // use_saved_allergies 제거 — 알레르기는 NFR-EVAL-001 안전 정책에 따라 항상 적용.
   food_type: string;          // 메인요리|반찬|국물|디저트|음료
   country: string;            // 한식|중식|일식|양식|기타
   max_cook_min: number;       // 분

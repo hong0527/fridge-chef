@@ -65,4 +65,6 @@ async def recommend_dual(
         _safe_run("model_a", _run_a(), settings.recommend_timeout_s),
         _safe_run("model_b", _run_b(), settings.recommend_timeout_s),
     )
+    # dedup 제거 — Model A(missing==0) 와 Model B(missing 1~5) 가 정의상 자연 분리되어
+    # 같은 recipe_id 가 양쪽에 동시 등장 불가. SDD §3.2 정의 충실.
     return {"model_a": model_a, "model_b": model_b}
