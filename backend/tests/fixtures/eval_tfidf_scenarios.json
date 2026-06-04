@@ -1,11 +1,12 @@
 {
   "_meta": {
-    "version": "1.0",
-    "description": "TF-IDF on/off 성능 비교 평가용 시나리오 (Issue #72). 학부 SW공학론 발표 자료.",
+    "version": "2.0",
+    "description": "TF-IDF on/off 성능 비교 평가용 시나리오 (Issue #72). 학부 SW공학론 발표 자료. v2 — 1667 운영 코퍼스 정답 갱신.",
     "scenarios": 24,
     "purpose": "자연어 user_context와 재료·선호 가중합 결합 시 TF-IDF 코사인 유사도(가중치 0.20)의 효과를 정량 측정. 한식·중식·일식·양식·디저트 카테고리, 알레르기, 정확 재료 매칭, 자연어 의도 케이스를 균형 있게 포함.",
-    "expected_relevant_format": "레시피 이름 또는 recipe_id(rNNN) 둘 다 허용. 평가 스크립트가 자동 매핑.",
-    "metrics": ["precision@10", "mrr", "ndcg@10"]
+    "expected_relevant_format": "레시피 이름 또는 recipe_id(rNNN) 둘 다 허용. 평가 스크립트가 자동 매핑. v2: 1667 운영 코퍼스 실재 레시피명 사용.",
+    "metrics": ["precision@10", "mrr", "ndcg@10"],
+    "v2_changes": "시드 35 기반 v1의 expected_relevant(예: '김치찌개', '소고기뭇국')가 운영 1667에는 통토큰 변형으로만 존재. v2는 운영 매칭되는 변형 이름군으로 확장."
   },
   "scenarios": [
     {
@@ -15,8 +16,8 @@
       "preferences": {"country": "한식", "food_type": "국물", "spicy": 3, "difficulty": "초보", "max_cook_min": 40, "diet": false},
       "fridge_ingredients": ["김치", "돼지고기", "두부", "대파", "마늘"],
       "user_allergies": [],
-      "expected_relevant": ["김치찌개", "순두부찌개", "된장찌개"],
-      "notes": "비 오는 날 → 국물·찌개 우선"
+      "expected_relevant": ["김치찌개", "참치김치찌개", "돼지고기김치찌개", "꽁치김치찌개", "순두부찌개", "해물순두부찌개", "된장찌개", "강된장찌개", "애호박된장찌개"],
+      "notes": "비 오는 날 → 국물·찌개 우선 (1667 변형 포함)"
     },
     {
       "scenario_id": "S002",
@@ -25,8 +26,8 @@
       "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 3, "difficulty": "초보", "max_cook_min": 30, "diet": false},
       "fridge_ingredients": ["계란", "대파", "양파", "당근", "감자"],
       "user_allergies": [],
-      "expected_relevant": ["계란말이", "감자전", "계란찜"],
-      "notes": "술안주 → 간단한 부침·말이류"
+      "expected_relevant": ["계란말이", "국수계란말이", "장어계란말이", "어묵계란말이", "감자전", "계란찜", "유부계란찜"],
+      "notes": "술안주 → 간단한 부침·말이류 (1667 변형)"
     },
     {
       "scenario_id": "S003",
@@ -35,8 +36,8 @@
       "preferences": {"country": "한식", "food_type": "반찬", "spicy": 1, "difficulty": "초보", "max_cook_min": 20, "diet": true},
       "fridge_ingredients": ["콩나물", "시금치", "양배추", "당근", "마늘"],
       "user_allergies": [],
-      "expected_relevant": ["콩나물국", "시금치나물", "야채볶음"],
-      "notes": "diet=True 저칼로리 야채 위주"
+      "expected_relevant": ["시금치나물", "콩나물잡채"],
+      "notes": "diet=True 저칼로리 야채 위주 (1667 매칭)"
     },
     {
       "scenario_id": "S004",
@@ -45,8 +46,8 @@
       "preferences": {"country": "한식", "food_type": "국물", "spicy": 4, "difficulty": "초보", "max_cook_min": 40, "diet": false},
       "fridge_ingredients": ["김치", "돼지고기", "두부", "대파", "고춧가루"],
       "user_allergies": [],
-      "expected_relevant": ["김치찌개", "부대찌개"],
-      "notes": "겨울+매운 → 김치·부대찌개"
+      "expected_relevant": ["김치찌개", "참치김치찌개", "돼지고기김치찌개", "꽁치김치찌개", "부대찌개"],
+      "notes": "겨울+매운 → 김치·부대찌개 (1667 변형)"
     },
     {
       "scenario_id": "S005",
@@ -55,8 +56,8 @@
       "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 2, "difficulty": "초보", "max_cook_min": 10, "diet": false},
       "fridge_ingredients": ["계란", "대파", "소금"],
       "user_allergies": [],
-      "expected_relevant": ["계란말이", "계란찜"],
-      "notes": "계란 1~2개로 가능한 초간단"
+      "expected_relevant": ["계란말이", "계란찜", "유부계란찜", "콩국계란찜"],
+      "notes": "계란 1~2개로 가능한 초간단 (1667 변형)"
     },
     {
       "scenario_id": "S006",
@@ -65,8 +66,8 @@
       "preferences": {"country": "한식", "food_type": "반찬", "spicy": 1, "difficulty": "초보", "max_cook_min": 20, "diet": false},
       "fridge_ingredients": ["감자", "양파", "식용유"],
       "user_allergies": [],
-      "expected_relevant": ["감자전", "감자볶음"],
-      "notes": "감자 단일 재료"
+      "expected_relevant": ["감자전", "표고버섯감자볶음"],
+      "notes": "감자 단일 재료 (1667 매칭)"
     },
     {
       "scenario_id": "S007",
@@ -75,8 +76,8 @@
       "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 1, "difficulty": "중급", "max_cook_min": 30, "diet": false},
       "fridge_ingredients": ["밥", "당근", "시금치", "버섯", "계란", "고추장"],
       "user_allergies": [],
-      "expected_relevant": ["비빔밥"],
-      "notes": "비빔밥 정확 재료"
+      "expected_relevant": ["나물비빔밥", "콩나물비빔밥", "허브비빔밥", "돌솥비빔밥", "웰빙비빔밥", "열무비빔밥"],
+      "notes": "비빔밥 정확 재료 (1667 변형)"
     },
     {
       "scenario_id": "S008",
@@ -85,8 +86,8 @@
       "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 1, "difficulty": "초보", "max_cook_min": 30, "diet": false},
       "fridge_ingredients": ["소고기", "무", "대파", "간장", "마늘"],
       "user_allergies": [],
-      "expected_relevant": ["소고기뭇국", "미역국"],
-      "notes": "집밥 한식 → 국·찌개"
+      "expected_relevant": ["미역국", "홍합미역국", "쇠고기무국"],
+      "notes": "집밥 한식 → 국·찌개 (1667 매칭)"
     },
     {
       "scenario_id": "S009",
@@ -95,8 +96,8 @@
       "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 4, "difficulty": "초보", "max_cook_min": 20, "diet": false},
       "fridge_ingredients": ["떡", "어묵", "대파", "고추장"],
       "user_allergies": [],
-      "expected_relevant": ["떡볶이"],
-      "notes": "분식 → 떡볶이"
+      "expected_relevant": ["떡볶이", "간장떡볶이", "치즈떡볶이", "카레떡볶이", "쌈장떡볶이", "피자떡볶이"],
+      "notes": "분식 → 떡볶이 (1667 변형)"
     },
     {
       "scenario_id": "S010",
@@ -105,8 +106,8 @@
       "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 1, "difficulty": "고급", "max_cook_min": 50, "diet": false},
       "fridge_ingredients": ["면", "소고기", "버섯", "당근", "시금치", "간장", "참기름"],
       "user_allergies": [],
-      "expected_relevant": ["잡채"],
-      "notes": "고급 한식"
+      "expected_relevant": ["잡채", "잡채밥", "피망잡채", "콩나물잡채", "해물잡채", "떡잡채"],
+      "notes": "고급 한식 (1667 변형)"
     },
     {
       "scenario_id": "S011",
@@ -115,8 +116,8 @@
       "preferences": {"country": "중식", "food_type": "메인요리", "spicy": 4, "difficulty": "중급", "max_cook_min": 40, "diet": false},
       "fridge_ingredients": ["면", "양파", "돼지고기", "감자", "마늘", "고추"],
       "user_allergies": [],
-      "expected_relevant": ["짜장면", "짬뽕"],
-      "notes": "중식 매운맛"
+      "expected_relevant": ["자장면", "사천식자장면", "중국식짬뽕", "삼선짬뽕", "짬뽕해물탕밥"],
+      "notes": "중식 매운맛 (1667 변형)"
     },
     {
       "scenario_id": "S012",
@@ -135,8 +136,8 @@
       "preferences": {"country": "중식", "food_type": "메인요리", "spicy": 1, "difficulty": "고급", "max_cook_min": 50, "diet": false},
       "fridge_ingredients": ["돼지고기", "당근", "양파", "식용유"],
       "user_allergies": [],
-      "expected_relevant": ["탕수육"],
-      "notes": "탕수육 정확 매칭"
+      "expected_relevant": ["탕수육", "오렌지소스탕수육", "파인애플탕수육", "콘소스탕수육"],
+      "notes": "탕수육 변형 매칭"
     },
     {
       "scenario_id": "S014",
@@ -145,8 +146,8 @@
       "preferences": {"country": "일식", "food_type": "국물", "spicy": 2, "difficulty": "중급", "max_cook_min": 30, "diet": false},
       "fridge_ingredients": ["면", "간장", "대파", "계란", "돼지고기"],
       "user_allergies": [],
-      "expected_relevant": ["라멘", "우동"],
-      "notes": "일식 국물면"
+      "expected_relevant": ["우동", "정통일본식우동", "철판우동", "새우튀김우동", "덴까스우동", "볶음우동", "김치우동", "해물볶음우동"],
+      "notes": "일식 국물면 (우동 변형)"
     },
     {
       "scenario_id": "S015",
@@ -155,8 +156,8 @@
       "preferences": {"country": "일식", "food_type": "메인요리", "spicy": 1, "difficulty": "초보", "max_cook_min": 25, "diet": false},
       "fridge_ingredients": ["밥", "계란", "양파", "당근", "소고기", "간장"],
       "user_allergies": [],
-      "expected_relevant": ["오므라이스", "규동"],
-      "notes": "일식 덮밥류"
+      "expected_relevant": ["오므라이스", "스피드오므라이스", "쌈장오므라이스", "회덮밥", "계란덮밥", "버섯덮밥"],
+      "notes": "일식 덮밥류 (1667 변형)"
     },
     {
       "scenario_id": "S016",
@@ -165,8 +166,8 @@
       "preferences": {"country": "일식", "food_type": "메인요리", "spicy": 1, "difficulty": "초보", "max_cook_min": 30, "diet": false},
       "fridge_ingredients": ["밥", "양파", "당근", "쌀", "어류", "김"],
       "user_allergies": ["계란"],
-      "expected_relevant": ["초밥"],
-      "notes": "알레르기 회원 + 일식"
+      "expected_relevant": ["모듬초밥", "현미초밥", "유부초밥", "새우초밥", "생선초밥"],
+      "notes": "알레르기 회원 + 일식 (초밥 변형)"
     },
     {
       "scenario_id": "S017",
@@ -175,8 +176,8 @@
       "preferences": {"country": "양식", "food_type": "메인요리", "spicy": 1, "difficulty": "중급", "max_cook_min": 30, "diet": false},
       "fridge_ingredients": ["면", "올리브유", "마늘", "토마토", "양파"],
       "user_allergies": ["우유"],
-      "expected_relevant": ["토마토파스타"],
-      "notes": "양식+우유 알레르기"
+      "expected_relevant": ["뽀모도로 토마토파스타"],
+      "notes": "양식+우유 알레르기 (1667 매칭)"
     },
     {
       "scenario_id": "S018",
@@ -185,8 +186,8 @@
       "preferences": {"country": "양식", "food_type": "메인요리", "spicy": 1, "difficulty": "중급", "max_cook_min": 25, "diet": false},
       "fridge_ingredients": ["면", "계란", "치즈", "돼지고기", "올리브유"],
       "user_allergies": [],
-      "expected_relevant": ["까르보나라"],
-      "notes": "양식 크림 파스타"
+      "expected_relevant": ["까르보나라 (이탈리아식)", "까르보나라 (한국식)", "정통 나폴리 까르보나라"],
+      "notes": "양식 크림 파스타 (1667 변형)"
     },
     {
       "scenario_id": "S019",
@@ -195,8 +196,8 @@
       "preferences": {"country": "양식", "food_type": "메인요리", "spicy": 1, "difficulty": "고급", "max_cook_min": 40, "diet": false},
       "fridge_ingredients": ["소고기", "올리브유", "마늘", "토마토", "면", "치즈"],
       "user_allergies": [],
-      "expected_relevant": ["스테이크"],
-      "notes": "양식 고급"
+      "expected_relevant": ["안심스테이크", "찹스테이크", "햄버거스테이크", "퓨전찹스테이크", "오징어피자스테이크", "두부스테이크", "휠레미뇽스테이크"],
+      "notes": "양식 고급 (스테이크 변형)"
     },
     {
       "scenario_id": "S020",
@@ -205,8 +206,8 @@
       "preferences": {"country": "양식", "food_type": "반찬", "spicy": 1, "difficulty": "초보", "max_cook_min": 15, "diet": true},
       "fridge_ingredients": ["상추", "양파", "올리브유", "치즈", "닭고기"],
       "user_allergies": [],
-      "expected_relevant": ["샐러드", "치킨샐러드"],
-      "notes": "양식 다이어트 샐러드"
+      "expected_relevant": ["흑미 샐러드", "해산물샐러드", "두부드레싱과 채소샐러드", "바질토마토두부샐러드", "시금치샐러드", "감자샐러드", "토마토샐러드", "케이준치킨샐러드", "월도프치킨샐러드"],
+      "notes": "양식 다이어트 샐러드 (1667 변형)"
     },
     {
       "scenario_id": "S021",
@@ -235,8 +236,8 @@
       "preferences": {"country": "한식", "food_type": "디저트", "spicy": 1, "difficulty": "초보", "max_cook_min": 30, "diet": false},
       "fridge_ingredients": ["고구마", "설탕", "우유"],
       "user_allergies": [],
-      "expected_relevant": ["호떡", "고구마맛탕"],
-      "notes": "한식 디저트 — 시드 부족할 수 있음"
+      "expected_relevant": ["고구마맛탕"],
+      "notes": "한식 디저트 (1667 매칭)"
     },
     {
       "scenario_id": "S024",
@@ -245,8 +246,8 @@
       "preferences": {"country": "한식", "food_type": "국물", "spicy": 2, "difficulty": "초보", "max_cook_min": 10, "diet": false},
       "fridge_ingredients": ["계란", "대파", "면"],
       "user_allergies": [],
-      "expected_relevant": ["계란라면", "라면"],
-      "notes": "10분 이내 초간단"
+      "expected_relevant": ["해장라면", "카레라면", "냉라면", "사천식볶음라면"],
+      "notes": "10분 이내 초간단 (라면 변형)"
     }
   ]
 }

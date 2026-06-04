@@ -20,6 +20,7 @@ from app.core.config import settings
 from app.core.synonym_map import normalize_list
 from app.models.recipe import Recipe
 from app.models.recipe_repository import RecipeRepository, get_repository
+from app.services.context_expander import expand_context
 
 # 기본 양념·기름·물 — 사용자가 명시 입력하지 않아도 가정 (NFR-USE-001 편의).
 # contains_all 비교와 model_b 보유/부족 분류에서 모두 제외해 추천 빈 결과 빈도를 줄임.
@@ -240,7 +241,6 @@ async def recommend_cold_storage(
     # 가중치 0.20 = 학계 표준 (Aggarwal §4.4 weighted sum + content-based hybrid).
     # user_context 는 expand_context 로 코퍼스 도메인 키워드 확장 후 입력
     # (Salton & McGill 1983 §6 Query Expansion — OOV 어휘 흡수).
-    from app.services.context_expander import expand_context
     from app.services.embedding_service import score_query
     expanded_ctx = expand_context(user_context)
     query_text = f"{' '.join(fridge_norm)} {expanded_ctx}".strip()
