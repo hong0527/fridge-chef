@@ -18,6 +18,7 @@ import asyncio
 import json
 import math
 import os
+import pickle
 import statistics
 import sys
 import time
@@ -32,12 +33,25 @@ os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("GEMINI_API_KEY", "")
 
 from app.core.synonym_map import normalize_list  # noqa: E402
-from app.models.recipe_repository import get_repository  # noqa: E402
+from app.models.recipe import Recipe  # noqa: E402
+from app.models.recipe_repository import (  # noqa: E402
+    RecipeRepository,
+    get_repository,
+    set_repository,
+)
+from app.services import embedding_service as emb_mod  # noqa: E402
+from app.services import model_a as ma_mod  # noqa: E402
 from app.services import model_b as mb_mod  # noqa: E402
 from app.services.model_a import recommend_cold_storage  # noqa: E402
 from app.services.model_b import recommend_missing_ingredients  # noqa: E402
 
+# 1667 운영 코퍼스 캐시 (Supabase 풀에서 추출, asyncpg + ssl.CERT_NONE 패턴).
+# Scientist 진단: 시드 35 평가 후 후보 풀 0~3개로 측정 불가.
+# 1667 운영 코퍼스 사용 시 후보 풀 확대로 TF-IDF/expand 효과 측정 가능.
+RECIPES_1667_CACHE = Path("/tmp/recipes_1667.pkl")
+
 GOLDEN_PATH = _BACKEND_DIR / "tests" / "fixtures" / "recommend_golden_set.json"
+TFIDF_SCENARIOS_PATH = _BACKEND_DIR / "tests" / "fixtures" / "eval_tfidf_scenarios.json"
 
 
 # ────────────────────────────────────────────────────────────────
@@ -309,12 +323,554 @@ def print_report(results: list[dict], agg: dict, checks: dict) -> None:
 
 
 # ────────────────────────────────────────────────────────────────
+# TF-IDF on/off 비교 평가 (Issue #72)
+# ────────────────────────────────────────────────────────────────
+
+
+def _build_name_to_id(repo: Any) -> dict[str, str]:
+    """레시피 이름 → recipe_id 매핑. 시나리오 expected_relevant가
+    한글 이름 또는 rNNN ID 둘 다 허용하도록 자동 변환에 사용.
+    """
+    return {r.name: r.recipe_id for r in repo.list_all()}
+
+
+def _normalize_expected(expected: list[str], name_to_id: dict[str, str]) -> set[str]:
+    """expected_relevant 항목을 recipe_id 집합으로 정규화.
+
+    - rNNN 형식 → 그대로
+    - 그 외 (한글 이름) → name_to_id 매핑. 매핑 실패 시 원본 보존 (오타 보호)
+    """
+    out: set[str] = set()
+    for item in expected:
+        if not item:
+            continue
+        if item.startswith("r") and item[1:].isdigit():
+            out.add(item)
+        elif item in name_to_id:
+            out.add(name_to_id[item])
+        else:
+            out.add(item)  # 매칭 불가 — 결과에서 미스로 처리됨
+    return out
+
+
+def _empty_score_query(query_text: str) -> dict[str, float]:
+    """TF-IDF OFF 모드용 — 항상 빈 dict 반환 → 가중합에 0 기여.
+
+    model_a / model_b의 `from app.services.embedding_service import score_query`
+    호출을 monkey-patch로 가로채 효과적으로 TF-IDF 가중치를 0으로 만듦.
+    """
+    return {}
+
+
+async def _evaluate_tfidf_scenario(
+    scenario: dict, repo: Any, name_to_id: dict[str, str]
+) -> dict[str, Any]:
+    """TF-IDF 비교용 단일 시나리오 평가 — model_a Top-10 결과를 메트릭으로 산출."""
+    fridge = scenario["fridge_ingredients"]
+    prefs = scenario["preferences"]
+    allergies = scenario.get("user_allergies", [])
+    user_ctx = scenario.get("user_context", "")
+    expected_raw = scenario.get("expected_relevant", [])
+    expected = _normalize_expected(expected_raw, name_to_id)
+
+    start = time.perf_counter()
+    a = await recommend_cold_storage(
+        fridge_ingredients=fridge,
+        preferences=prefs,
+        user_allergies=allergies,
+        repo=repo,
+        user_context=user_ctx,
+    )
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    a_ids = [r["recipe_id"] for r in a]
+
+    return {
+        "scenario_id": scenario["scenario_id"],
+        "category": scenario.get("category", "-"),
+        "user_context": user_ctx,
+        "recommended_ids": a_ids,
+        "expected_ids": sorted(expected),
+        "precision_at_10": precision_at_k(a_ids, expected, 10),
+        "mrr": reciprocal_rank(a_ids, expected),
+        "ndcg_at_10": ndcg_at_k(a_ids, expected, 10),
+        "elapsed_ms": round(elapsed_ms, 2),
+        "has_truth": len(expected) > 0,
+    }
+
+
+def _paired_t_test(diffs: list[float]) -> tuple[float, float]:
+    """간단한 paired t-test (단측이 아닌 양측, 동일 분포 가정).
+
+    df = n-1, t = mean(d) / (sd(d)/sqrt(n)). p값은 t분포 CDF 대신
+    학부 발표용 근사 — |t| ≥ 2.045 (df≈29, α=0.05) 시 "유의" 판단.
+    실제 scipy 없이 표준편차 기반 t-statistic만 반환하고 임계값 가이드 출력.
+
+    Returns: (t_stat, sample_sd)
+    """
+    n = len(diffs)
+    if n < 2:
+        return 0.0, 0.0
+    mean_d = sum(diffs) / n
+    var = sum((d - mean_d) ** 2 for d in diffs) / (n - 1)
+    sd = math.sqrt(var)
+    if sd == 0:
+        return float("inf") if mean_d != 0 else 0.0, 0.0
+    t_stat = mean_d / (sd / math.sqrt(n))
+    return t_stat, sd
+
+
+def _interpret_t(t_stat: float, n: int) -> str:
+    """학부 수준 — df 별 양측 95% 임계값 근사."""
+    if n < 2:
+        return "표본 부족"
+    # df=23 (n=24) 양측 5% 임계값 ≈ 2.069, df=29 ≈ 2.045 (Student t 표).
+    # 학부 발표 단순화 — |t| 임계값 2.07 사용.
+    if math.isinf(t_stat):
+        return "차이 일관 (p < 0.001)"
+    abs_t = abs(t_stat)
+    if abs_t >= 2.807:  # df≈23 α=0.01
+        return f"매우 유의 (|t|={abs_t:.2f} ≥ 2.81, p < 0.01)"
+    if abs_t >= 2.069:  # df≈23 α=0.05
+        return f"유의 (|t|={abs_t:.2f} ≥ 2.07, p < 0.05)"
+    return f"비유의 (|t|={abs_t:.2f} < 2.07, p ≥ 0.05)"
+
+
+def _print_compare_report(
+    off_results: list[dict], on_results: list[dict]
+) -> None:
+    """TF-IDF off vs on 비교표 + 통계 유의성 출력."""
+    n = len(off_results)
+    print("=" * 88)
+    print("TF-IDF on/off 성능 비교 평가 (Issue #72)")
+    print("=" * 88)
+    print(f"\n시나리오 총 {n}개  (Model A Top-10 기준)\n")
+
+    def _mean(rs: list[dict], key: str) -> float:
+        return sum(r[key] for r in rs) / len(rs) if rs else 0.0
+
+    metrics = [
+        ("Precision@10", "precision_at_10"),
+        ("MRR", "mrr"),
+        ("NDCG@10", "ndcg_at_10"),
+        ("Elapsed ms", "elapsed_ms"),
+    ]
+
+    # 집계 표
+    print("[전체 평균]")
+    print(f"  {'Metric':<14s} {'A. TF-IDF OFF':>15s} {'B. TF-IDF 0.20':>16s} {'Δ (B-A)':>10s} {'Δ%':>8s}")
+    for label, key in metrics:
+        a_val = _mean(off_results, key)
+        b_val = _mean(on_results, key)
+        delta = b_val - a_val
+        pct = (delta / a_val * 100) if a_val != 0 else 0.0
+        print(f"  {label:<14s} {a_val:>15.4f} {b_val:>16.4f} {delta:>+10.4f} {pct:>+7.2f}%")
+
+    # 정답 정의된 시나리오만 (precision/mrr/ndcg는 truth 있어야 의미)
+    paired = [(o, n_) for o, n_ in zip(off_results, on_results, strict=False) if o["has_truth"]]
+    print(f"\n[정답 정의된 시나리오 {len(paired)}건 대상 paired t-test]")
+    if not paired:
+        print("  표본 없음 — t-test 생략")
+    else:
+        for label, key in [("Precision@10", "precision_at_10"), ("MRR", "mrr"), ("NDCG@10", "ndcg_at_10")]:
+            diffs = [b[key] - a[key] for a, b in paired]
+            t_stat, sd = _paired_t_test(diffs)
+            mean_d = sum(diffs) / len(diffs)
+            print(f"  {label:<14s} mean Δ = {mean_d:+.4f}  sd = {sd:.4f}  t = {t_stat:+.3f}  → {_interpret_t(t_stat, len(diffs))}")
+
+    # 시나리오별 비교
+    print("\n[시나리오별 결과]")
+    print(f"  {'ID':5s} {'cat':6s} {'P@10 A':>7s} {'P@10 B':>7s} {'MRR A':>7s} {'MRR B':>7s} {'NDCG A':>7s} {'NDCG B':>7s} ctx")
+    for a, b in zip(off_results, on_results, strict=False):
+        ctx = (a["user_context"][:28] + "…") if len(a["user_context"]) > 28 else a["user_context"]
+        print(
+            f"  {a['scenario_id']:5s} {a['category']:6s} "
+            f"{a['precision_at_10']:>7.3f} {b['precision_at_10']:>7.3f} "
+            f"{a['mrr']:>7.3f} {b['mrr']:>7.3f} "
+            f"{a['ndcg_at_10']:>7.3f} {b['ndcg_at_10']:>7.3f} {ctx}"
+        )
+
+    # 카테고리별 집계 — 발표용 인사이트
+    cats: dict[str, list[tuple[dict, dict]]] = {}
+    for a, b in zip(off_results, on_results, strict=False):
+        cats.setdefault(a["category"], []).append((a, b))
+    print("\n[카테고리별 P@10 평균]")
+    print(f"  {'category':<10s} {'n':>3s} {'A OFF':>8s} {'B ON':>8s} {'Δ':>8s}")
+    for cat, pairs in sorted(cats.items()):
+        n_c = len(pairs)
+        a_avg = sum(a["precision_at_10"] for a, _ in pairs) / n_c
+        b_avg = sum(b["precision_at_10"] for _, b in pairs) / n_c
+        print(f"  {cat:<10s} {n_c:>3d} {a_avg:>8.3f} {b_avg:>8.3f} {b_avg - a_avg:>+8.3f}")
+
+
+def _load_1667_corpus() -> list[Recipe]:
+    """/tmp/recipes_1667.pkl 캐시에서 운영 1667 레시피를 Recipe 도메인 객체로 로드.
+
+    Supabase 풀에서 사전 추출된 캐시 (asyncpg + ssl.CERT_NONE 우회) 사용.
+    캐시 부재 시 빈 리스트 반환 → 호출자가 SEED 폴백.
+    """
+    if not RECIPES_1667_CACHE.exists():
+        print(f"⚠ 1667 캐시 없음: {RECIPES_1667_CACHE} — SEED 35 폴백")
+        return []
+    with RECIPES_1667_CACHE.open("rb") as f:
+        rows = pickle.load(f)
+    recipes: list[Recipe] = []
+    for r in rows:
+        try:
+            ings = json.loads(r["whole_ingredients"]) if isinstance(r["whole_ingredients"], str) else r["whole_ingredients"]
+        except Exception:
+            ings = []
+        try:
+            allergens = json.loads(r["allergens"]) if isinstance(r["allergens"], str) else (r["allergens"] or [])
+        except Exception:
+            allergens = []
+        recipes.append(
+            Recipe(
+                recipe_id=str(r["recipe_id"]),
+                name=r["name"],
+                whole_ingredients=list(ings),
+                cook_min=int(r.get("cook_min", 30)),
+                spicy=int(r.get("spicy", 1)),
+                difficulty_level=int(r.get("difficulty_level", 1)),
+                is_low_calorie=bool(r.get("is_low_calorie", False)),
+                country=str(r.get("country", "kr")),
+                theme=str(r.get("theme", "main")),
+                allergens=list(allergens),
+            )
+        )
+    return recipes
+
+
+def _build_name_to_id_partial(repo: Any) -> dict[str, str]:
+    """이름 → recipe_id 정확매칭 + 부분 매칭 fallback.
+
+    1667 운영 코퍼스는 동일 통토큰("우동")이 다수 변형으로 존재("정통일본식우동").
+    expected_relevant에 운영 변형 이름을 직접 적었으므로 정확매칭 우선,
+    실패 시 부분 문자열 매칭으로 fallback.
+    """
+    out: dict[str, str] = {}
+    all_names = [(r.name, r.recipe_id) for r in repo.list_all()]
+    for name, rid in all_names:
+        out[name] = rid
+    return out
+
+
+def _normalize_expected_with_partial(
+    expected: list[str], repo: Any
+) -> set[str]:
+    """expected_relevant → recipe_id 집합.
+
+    정확매칭 우선. 정확 매칭 실패 시 부분 문자열 매칭으로 모든 후보 ID 수집.
+    1667에 "우동"으로 검색하면 "정통일본식우동", "철판우동" 등 8개 매칭.
+    """
+    out: set[str] = set()
+    all_names = [(r.name, r.recipe_id) for r in repo.list_all()]
+    name_exact = {n: rid for n, rid in all_names}
+    for item in expected:
+        if not item:
+            continue
+        if item.startswith("r") and item[1:].isdigit():
+            out.add(item)
+        elif item in name_exact:
+            out.add(name_exact[item])
+        else:
+            # 부분 매칭 — 시드 fixture 호환
+            for name, rid in all_names:
+                if item in name:
+                    out.add(rid)
+    return out
+
+
+async def _evaluate_scenario_mode(
+    scenario: dict,
+    repo: Any,
+    *,
+    use_tfidf: bool,
+    use_expand: bool,
+    original_score_query,
+    original_expand_context,
+) -> dict[str, Any]:
+    """4모드 비교용 평가 — TF-IDF/expand 조합 가능."""
+    # 모드 토글: monkey-patch
+    emb_mod.score_query = original_score_query if use_tfidf else _empty_score_query
+    # expand 모드 토글
+    if use_expand:
+        ma_mod.expand_context = original_expand_context  # type: ignore[attr-defined]
+    else:
+        ma_mod.expand_context = lambda x: x  # type: ignore[attr-defined]
+
+    fridge = scenario["fridge_ingredients"]
+    prefs = scenario["preferences"]
+    allergies = scenario.get("user_allergies", [])
+    user_ctx = scenario.get("user_context", "")
+    expected_raw = scenario.get("expected_relevant", [])
+    expected = _normalize_expected_with_partial(expected_raw, repo)
+
+    start = time.perf_counter()
+    a = await recommend_cold_storage(
+        fridge_ingredients=fridge,
+        preferences=prefs,
+        user_allergies=allergies,
+        repo=repo,
+        user_context=user_ctx,
+    )
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    a_ids = [r["recipe_id"] for r in a]
+
+    return {
+        "scenario_id": scenario["scenario_id"],
+        "category": scenario.get("category", "-"),
+        "user_context": user_ctx,
+        "recommended_ids": a_ids,
+        "candidate_count": len(a_ids),
+        "expected_id_count": len(expected),
+        "precision_at_10": precision_at_k(a_ids, expected, 10),
+        "mrr": reciprocal_rank(a_ids, expected),
+        "ndcg_at_10": ndcg_at_k(a_ids, expected, 10),
+        "elapsed_ms": round(elapsed_ms, 2),
+        "has_truth": len(expected) > 0,
+    }
+
+
+def _print_4mode_report(
+    mode_results: dict[str, list[dict]], corpus_label: str, overlap: float
+) -> None:
+    """4모드 (A/B/C/D) 비교 + paired t-test 출력."""
+    print("=" * 96)
+    print(f"TF-IDF + expand_context 4모드 비교 평가 (코퍼스: {corpus_label}, overlap_th={overlap})")
+    print("=" * 96)
+    modes = ["A_baseline", "B_tfidf_only", "C_tfidf_expand", "D_expand_only"]
+    labels = {
+        "A_baseline": "A. 가중합만 (baseline)",
+        "B_tfidf_only": "B. +TF-IDF (expand off)",
+        "C_tfidf_expand": "C. +TF-IDF +expand (full)",
+        "D_expand_only": "D. +expand only (no TF-IDF)",
+    }
+    n = len(mode_results["A_baseline"])
+    paired_idx = [
+        i for i in range(n)
+        if mode_results["A_baseline"][i]["has_truth"]
+    ]
+    print(f"\n시나리오 총 {n}개  (정답 정의: {len(paired_idx)}개)\n")
+
+    def _mean(rs: list[dict], key: str) -> float:
+        return sum(r[key] for r in rs) / len(rs) if rs else 0.0
+
+    metrics = [
+        ("Precision@10", "precision_at_10"),
+        ("MRR", "mrr"),
+        ("NDCG@10", "ndcg_at_10"),
+        ("Elapsed ms", "elapsed_ms"),
+        ("Cand count", "candidate_count"),
+    ]
+
+    print("[전체 평균 (정답 정의된 시나리오 기준 P/MRR/NDCG)]")
+    print(f"  {'Metric':<14s} " + " ".join(f"{labels[m][:18]:>20s}" for m in modes))
+    for label, key in metrics:
+        # 정답 있는 시나리오만 (Precision/MRR/NDCG)
+        if key in ("precision_at_10", "mrr", "ndcg_at_10"):
+            vals = {
+                m: _mean([mode_results[m][i] for i in paired_idx], key)
+                for m in modes
+            }
+        else:
+            vals = {m: _mean(mode_results[m], key) for m in modes}
+        print(f"  {label:<14s} " + " ".join(f"{vals[m]:>20.4f}" for m in modes))
+
+    # C vs A — 4모드 핵심 비교 (full vs baseline)
+    print("\n[C vs A paired t-test (정답 있는 시나리오)]")
+    for label, key in [("Precision@10", "precision_at_10"), ("MRR", "mrr"), ("NDCG@10", "ndcg_at_10")]:
+        diffs = [
+            mode_results["C_tfidf_expand"][i][key] - mode_results["A_baseline"][i][key]
+            for i in paired_idx
+        ]
+        if not diffs:
+            print(f"  {label}: 표본 없음")
+            continue
+        t_stat, sd = _paired_t_test(diffs)
+        mean_d = sum(diffs) / len(diffs)
+        a_mean = _mean([mode_results["A_baseline"][i] for i in paired_idx], key)
+        pct = (mean_d / a_mean * 100) if a_mean else 0.0
+        print(
+            f"  {label:<14s} mean Δ = {mean_d:+.4f}  ({pct:+.1f}%)  sd = {sd:.4f}  t = {t_stat:+.3f}  → {_interpret_t(t_stat, len(diffs))}"
+        )
+
+    # B vs A — TF-IDF 단독 효과
+    print("\n[B vs A paired t-test (TF-IDF 단독 효과)]")
+    for label, key in [("Precision@10", "precision_at_10"), ("MRR", "mrr"), ("NDCG@10", "ndcg_at_10")]:
+        diffs = [
+            mode_results["B_tfidf_only"][i][key] - mode_results["A_baseline"][i][key]
+            for i in paired_idx
+        ]
+        if not diffs:
+            continue
+        t_stat, sd = _paired_t_test(diffs)
+        mean_d = sum(diffs) / len(diffs)
+        print(f"  {label:<14s} mean Δ = {mean_d:+.4f}  sd = {sd:.4f}  t = {t_stat:+.3f}  → {_interpret_t(t_stat, len(diffs))}")
+
+    # 시나리오별 (Mode C 중심)
+    print("\n[시나리오별 결과 (A=baseline / C=TF-IDF+expand)]")
+    print(f"  {'ID':5s} {'cat':6s} {'cand':>4s} {'P@10 A':>7s} {'P@10 C':>7s} {'MRR A':>7s} {'MRR C':>7s} ctx")
+    for i in range(n):
+        a = mode_results["A_baseline"][i]
+        c = mode_results["C_tfidf_expand"][i]
+        ctx = (a["user_context"][:30] + "…") if len(a["user_context"]) > 30 else a["user_context"]
+        print(
+            f"  {a['scenario_id']:5s} {a['category']:6s} {a['candidate_count']:>4d} "
+            f"{a['precision_at_10']:>7.3f} {c['precision_at_10']:>7.3f} "
+            f"{a['mrr']:>7.3f} {c['mrr']:>7.3f} {ctx}"
+        )
+
+
+async def run_compare_4modes(corpus: str, overlap: float) -> int:
+    """4모드 비교 평가 (Scientist 진단 후속).
+
+    A: baseline (TF-IDF off, expand off)
+    B: +TF-IDF (expand off) — TF-IDF 단독 효과
+    C: +TF-IDF +expand_context (전체) — 본 PR 제안
+    D: +expand only (no TF-IDF) — expand 단독 효과
+
+    corpus: 'seed35' | '1667' (실측 코퍼스)
+    overlap: 재료 overlap 임계값 (1.0=운영 hard / 0.5=완화)
+    """
+    mb_mod.gemini_select_top3 = _mock_gemini_none
+
+    # 코퍼스 선택
+    if corpus == "1667":
+        recipes = _load_1667_corpus()
+        if not recipes:
+            print("❌ 1667 코퍼스 로드 실패 — 평가 중단")
+            return 1
+        set_repository(RecipeRepository(recipes))
+        corpus_label = f"1667 운영 ({len(recipes)}건)"
+    else:
+        corpus_label = "SEED 35"
+
+    repo = get_repository()
+
+    # overlap 임계값 monkey-patch (model_a._OVERLAP_THRESHOLD)
+    original_overlap = ma_mod._OVERLAP_THRESHOLD
+    ma_mod._OVERLAP_THRESHOLD = overlap
+
+    try:
+        # TF-IDF fit
+        emb_mod._reset_for_tests()
+        emb_mod.fit_corpus(repo.list_all())
+        if not emb_mod.is_ready():
+            print("⚠ TF-IDF fit_corpus 실패")
+            return 1
+
+        with TFIDF_SCENARIOS_PATH.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        scenarios = data["scenarios"]
+
+        # 원본 보존
+        original_score_query = emb_mod.score_query
+        from app.services.context_expander import expand_context as original_expand_context
+
+        modes = {
+            "A_baseline": (False, False),
+            "B_tfidf_only": (True, False),
+            "C_tfidf_expand": (True, True),
+            "D_expand_only": (False, True),
+        }
+        mode_results: dict[str, list[dict]] = {m: [] for m in modes}
+        for mode, (use_tfidf, use_expand) in modes.items():
+            for sc in scenarios:
+                res = await _evaluate_scenario_mode(
+                    sc, repo,
+                    use_tfidf=use_tfidf, use_expand=use_expand,
+                    original_score_query=original_score_query,
+                    original_expand_context=original_expand_context,
+                )
+                mode_results[mode].append(res)
+
+        # 복원 — 다음 호출 안전
+        emb_mod.score_query = original_score_query
+        ma_mod.expand_context = original_expand_context  # type: ignore[attr-defined]
+
+        _print_4mode_report(mode_results, corpus_label, overlap)
+        return 0
+    finally:
+        ma_mod._OVERLAP_THRESHOLD = original_overlap
+
+
+async def run_compare_tfidf() -> int:
+    """TF-IDF on/off 두 모드로 시나리오 평가 후 비교 보고서 출력.
+
+    구현 핵심:
+      - OFF: emb_mod.score_query를 빈 dict 반환 함수로 monkey-patch → 가중합에 0 기여
+      - ON : 원본 score_query 복원 → 0.20 가중치 적용
+      - model_a/model_b 알고리즘 코드는 손대지 않음 (Issue #72 다른 에이전트 작업 보호)
+    """
+    mb_mod.gemini_select_top3 = _mock_gemini_none
+
+    with TFIDF_SCENARIOS_PATH.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    scenarios = data["scenarios"]
+
+    repo = get_repository()
+    name_to_id = _build_name_to_id(repo)
+
+    # TF-IDF 코퍼스 fit — 평가 스크립트는 main.py startup을 거치지 않으므로
+    # 명시적으로 fit_corpus 호출. 호출하지 않으면 _VECTORIZER=None → ON 모드도
+    # 빈 dict 반환되어 두 모드가 동일해짐 (검증 실패).
+    if not emb_mod.is_ready():
+        emb_mod.fit_corpus(repo.list_all())
+        if not emb_mod.is_ready():
+            print("⚠ TF-IDF fit_corpus 실패 — 비교 결과 무의미. 코퍼스 확인 필요.")
+            return 1
+
+    # 원본 score_query 보존
+    original_score_query = emb_mod.score_query
+
+    # ── A. TF-IDF OFF ──
+    emb_mod.score_query = _empty_score_query
+    off_results = []
+    for sc in scenarios:
+        off_results.append(await _evaluate_tfidf_scenario(sc, repo, name_to_id))
+
+    # ── B. TF-IDF ON (가중치 0.20) ──
+    emb_mod.score_query = original_score_query
+    on_results = []
+    for sc in scenarios:
+        on_results.append(await _evaluate_tfidf_scenario(sc, repo, name_to_id))
+
+    _print_compare_report(off_results, on_results)
+
+    # 항상 exit 0 — 비교는 정보 출력용, NFR 임계값 검증 아님
+    return 0
+
+
+# ────────────────────────────────────────────────────────────────
 # 메인
 # ────────────────────────────────────────────────────────────────
 
 
 async def main() -> int:
-    """메인 평가. 임계값 미충족 시 exit code 1 (CI 회귀용)."""
+    """메인 평가. 임계값 미충족 시 exit code 1 (CI 회귀용).
+
+    --compare-tfidf            : TF-IDF on/off 비교 (시드 35 코퍼스)
+    --compare-4modes           : 4모드 (A/B/C/D) 비교 평가
+       --corpus seed35|1667    : 코퍼스 선택 (기본 1667)
+       --overlap 0.5|1.0       : 재료 overlap 임계값 (기본 1.0)
+    """
+    if "--compare-tfidf" in sys.argv:
+        return await run_compare_tfidf()
+
+    if "--compare-4modes" in sys.argv:
+        # 인자 파싱
+        corpus = "1667"
+        overlap = 1.0
+        if "--corpus" in sys.argv:
+            i = sys.argv.index("--corpus")
+            if i + 1 < len(sys.argv):
+                corpus = sys.argv[i + 1]
+        if "--overlap" in sys.argv:
+            i = sys.argv.index("--overlap")
+            if i + 1 < len(sys.argv):
+                overlap = float(sys.argv[i + 1])
+        return await run_compare_4modes(corpus, overlap)
+
     mb_mod.gemini_select_top3 = _mock_gemini_none  # Gemini 폴백 강제 — 결정론
 
     with GOLDEN_PATH.open("r", encoding="utf-8") as f:

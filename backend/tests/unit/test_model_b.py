@@ -137,7 +137,9 @@ class TestGeminiFallback:
         )
         assert len(out) >= 1
         for item in out:
-            assert item["reason"] == ""
+            # critic F3 빈 카드 차단 — Gemini 폴백 시 결정론 한국어 문장 보장.
+            assert item["reason"], "폴백이라도 결정론 reason 자동 생성"
+            assert "보유" in item["reason"] or "활용" in item["reason"]
             assert "final_score" in item
 
     @pytest.mark.asyncio

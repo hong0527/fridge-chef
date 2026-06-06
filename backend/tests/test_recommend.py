@@ -154,10 +154,12 @@ async def test_model_b_fallback_when_gemini_fails(monkeypatch: pytest.MonkeyPatc
         user_context="",
         repo=repo,
     )
-    # 폴백 동작: 결과는 있지만 reason 빈 문자열
+    # 폴백 동작: 결과 있고 reason 은 결정론 한국어 문장
+    # (critic F3 빈 카드 차단 패치 — 이전 reason="" 가정 폐기).
     assert len(out) >= 1
     for r in out:
-        assert r["reason"] == ""
+        assert r["reason"], "폴백이라도 결정론 reason 자동 생성"
+        assert "보유" in r["reason"] or "활용" in r["reason"]
 
 
 @pytest.mark.asyncio
