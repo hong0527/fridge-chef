@@ -52,9 +52,11 @@ async def test_gemini_fail_fallback_returns_top_by_final_score(
     # 폴백이라도 1개 이상 반환되어야 함
     assert len(out) >= 1, "Gemini 실패 폴백에서 결과 0건"
     for r in out:
-        assert r["reason"] == "", (
-            f"폴백 시 reason은 빈 문자열이어야 함. 실제: '{r['reason']}'"
+        # critic F3 빈 카드 차단 — Gemini 폴백 시 결정론 한국어 문장 보장.
+        assert r["reason"], (
+            f"폴백이라도 결정론 reason 자동 생성. 실제: '{r['reason']}'"
         )
+        assert "보유" in r["reason"] or "활용" in r["reason"]
 
 
 # ────────────────────────────────────────────────────────────────

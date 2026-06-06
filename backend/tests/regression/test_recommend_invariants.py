@@ -261,9 +261,11 @@ class TestGeminiFailureFallback:
         # 폴백 경로 자체가 예외 없이 동작하면 PASS
         assert isinstance(result, list)
         for item in result:
-            # 폴백 경로는 reason 이 빈 문자열
+            # critic F3 빈 카드 차단 — Gemini 폴백 시 결정론 한국어 문장 보장.
+            # 이전 가정 (reason="") 폐기. "보유한 X 활용. Y 추가 시 완성됩니다." 패턴.
             assert "reason" in item
-            assert item["reason"] == ""  # Gemini 폴백 = reason 비어있음
+            assert item["reason"], "폴백이라도 결정론 reason 보장"
+            assert "보유" in item["reason"] or "활용" in item["reason"]
 
     @pytest.mark.asyncio
     async def test_dual_isolated_failures(
