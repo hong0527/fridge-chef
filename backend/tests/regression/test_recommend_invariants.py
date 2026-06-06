@@ -16,19 +16,16 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
 from typing import Any
 
 import pytest
 
 from app.core.synonym_map import normalize_list
-from app.models.recipe_repository import get_repository
 from app.services import model_b as mb_mod
 from app.services.model_a import recommend_cold_storage
 from app.services.model_b import recommend_missing_ingredients
 from app.services.recommend_service import recommend_dual
-
 
 # ────────────────────────────────────────────────────────────────
 # Fixtures
