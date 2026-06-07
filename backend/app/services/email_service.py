@@ -25,7 +25,7 @@ def send_verification_email(to: str, token: str) -> None:
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = "[FridgeChef] 이메일 인증을 완료해주세요"
-        msg["From"] = "FridgeChef <noreply@fridgechef.local>"
+        msg["From"] = f"FridgeChef <{settings.smtp_user}>"
         msg["To"] = to
         msg.attach(MIMEText(html, "html"))
 
