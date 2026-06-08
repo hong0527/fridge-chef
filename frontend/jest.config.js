@@ -16,6 +16,7 @@ moduleNameMapper: {
     'middleware.ts',
     'app/**/profile/page.tsx',
     'app/**/allergies/page.tsx',
+    'app/**/favorites/page.tsx',
     '!**/*.d.ts',
   ],
 };
