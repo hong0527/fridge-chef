@@ -16,6 +16,7 @@ from app.services.gemini_client import (
     _build_prompt,
     _call_gemini_sdk,
     _parse_response_text,
+    gemini_reasons_for_model_a,
     gemini_select_top3,
 )
 
@@ -210,3 +211,85 @@ class TestGeminiSelectTop3Coverage:
         """# NFR-SEC-002 — GEMINI_API_KEY 미설정 시 SDK 호출 없이 None 반환 (lines 77-79)."""
         result = await _call_gemini_sdk("테스트 프롬프트")
         assert result is None
+
+
+# ─────────────────────────────────────────────────────────────
+class TestGeminiReasonsForModelA:
+    """gemini_reasons_for_model_a — Model A 자연어 이유 생성 (GC-MA-001~006)."""
+
+    @pytest.mark.asyncio
+    async def test_gc_ma_001_empty_candidates_returns_none(self) -> None:
+        """GC-MA-001 — candidates=[] 빈 리스트 → None 반환 (SDK 호출 없음)."""
+        result = await gemini_reasons_for_model_a([], "테스트")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_gc_ma_002_timeout_returns_none(self, monkeypatch) -> None:
+        """# NFR-REL-001 — SDK 호출이 타임아웃 초과 시 None 반환 (폴백 경로)."""
+        import asyncio
+        from dataclasses import replace
+
+        import app.services.gemini_client as gc_mod
+        from app.core import config as cfg
+
+        async def _slow_sdk(_: str) -> None:
+            await asyncio.sleep(999)
+
+        monkeypatch.setattr(gc_mod, "_call_gemini_sdk", _slow_sdk)
+        monkeypatch.setattr(gc_mod, "settings", replace(cfg.settings, gemini_timeout_s=0.01))
+
+        result = await gemini_reasons_for_model_a(_CANDIDATES_3[:1], "")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_gc_ma_003_sdk_none_returns_none(self, monkeypatch) -> None:
+        """GC-MA-003 — SDK가 None 반환 → None 반환."""
+        import app.services.gemini_client as gc_mod
+
+        async def _mock_none(_: str) -> None:
+            return None
+
+        monkeypatch.setattr(gc_mod, "_call_gemini_sdk", _mock_none)
+
+        result = await gemini_reasons_for_model_a(_CANDIDATES_3[:1], "")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_gc_ma_004_no_reasons_key_returns_none(self, monkeypatch) -> None:
+        """GC-MA-004 — SDK가 'reasons' 키 없는 JSON 반환 → None 반환."""
+        import app.services.gemini_client as gc_mod
+
+        async def _mock_no_reasons(_: str) -> str:
+            return '{"selected": ["r001"]}'
+
+        monkeypatch.setattr(gc_mod, "_call_gemini_sdk", _mock_no_reasons)
+
+        result = await gemini_reasons_for_model_a(_CANDIDATES_3[:1], "")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_gc_ma_005_valid_response_returns_reasons_list(self, monkeypatch) -> None:
+        """GC-MA-005 — SDK가 정상 JSON 반환 → reasons 리스트 반환."""
+        import app.services.gemini_client as gc_mod
+
+        async def _mock_valid(_: str) -> str:
+            return '{"reasons": ["이유 하나", "이유 둘", "이유 셋"]}'
+
+        monkeypatch.setattr(gc_mod, "_call_gemini_sdk", _mock_valid)
+
+        result = await gemini_reasons_for_model_a(_CANDIDATES_3, "저녁 뭐 먹지")
+        assert result == ["이유 하나", "이유 둘", "이유 셋"]
+
+    @pytest.mark.asyncio
+    async def test_gc_ma_006_partial_reasons_returns_available(self, monkeypatch) -> None:
+        """GC-MA-006 — reasons 수가 candidates 수와 불일치 → 가능한 만큼 반환 (partial)."""
+        import app.services.gemini_client as gc_mod
+
+        async def _mock_partial(_: str) -> str:
+            return '{"reasons": ["이유 하나"]}'
+
+        monkeypatch.setattr(gc_mod, "_call_gemini_sdk", _mock_partial)
+
+        # candidates 3개, reasons 1개 → partial 반환
+        result = await gemini_reasons_for_model_a(_CANDIDATES_3, "저녁")
+        assert result == ["이유 하나"]

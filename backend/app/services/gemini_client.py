@@ -126,6 +126,76 @@ async def _call_gemini_sdk(prompt: str) -> str | None:
     return await asyncio.to_thread(_sync_call)
 
 
+def _build_prompt_model_a(candidates: list[dict], user_context: str) -> str:
+    """Model A(냉털)용 reason 생성 프롬프트 — 모든 후보의 보유율 100% 가정.
+
+    Model B 와 달리 missing 이 없으므로 "지금 바로 만들 수 있다"는 톤으로 작성.
+    """
+    lines = []
+    for i, c in enumerate(candidates, 1):
+        have = c.get("have", []) or []
+        lines.append(
+            f"[{i}] id={c['recipe_id']} | {c['name']} | "
+            f"{_COUNTRY_KR.get(c.get('country', 'kr'), '한식')}·"
+            f"{_THEME_KR.get(c.get('theme', 'main'), '메인')} | "
+            f"조리 {c['cook_min']}분 | 맵기 {c.get('spicy', 1)}/5 | "
+            f"난이도 {_DIFF_KR.get(c.get('difficulty_level', 1), '초보')} | "
+            f"보유재료: {', '.join(have) if have else '냉장고 재료'}"
+        )
+    candidate_block = "\n".join(lines)
+    ctx = user_context.strip() or "(특이사항 없음)"
+    return f"""당신은 한국어 요리 큐레이터입니다. 모든 후보의 추천 이유를 작성하세요.
+
+[사용자 문맥]
+{ctx}
+
+[후보 목록 — 모든 재료가 냉장고에 있어 바로 만들 수 있음]
+{candidate_block}
+
+[reason 작성 규칙 — 반드시 준수]
+1) 각 reason 은 한국어 2~3문장, 80~140자.
+2) 첫 문장: 사용자 문맥("{ctx}")의 키워드를 직접 인용하거나 명시적으로 연결.
+3) 둘째 문장: 이 레시피의 매력 포인트 1가지 (맛 특징·식감·향·풍미·궁합 등 구체).
+4) (선택) 셋째 문장: 보유 재료·조리시간·매운맛 중 1개를 구체 활용 제안.
+5) 금지어: "맛있는", "인기", "추천합니다", "좋습니다", "높은 점수" (일반화 회피).
+6) 후보 모두 reason 은 서로 다른 매력 포인트 축으로 차별화.
+
+[출력 — JSON 객체만, 마크다운·코드펜스·설명 금지]
+{{
+  "reasons": ["입력 순서대로 후보 1의 이유", "후보 2의 이유", ...]
+}}
+"""
+
+
+async def gemini_reasons_for_model_a(
+    candidates: list[dict],
+    user_context: str,
+) -> list[str] | None:
+    """Model A 후보 N개에 자연어 추천 이유를 생성.
+
+    Model B(`gemini_select_top3`)와 달리 후보 순서·개수 그대로 유지하고 reason 만 생성.
+    실패/타임아웃 시 None 반환 → 호출자는 결정론 폴백으로 처리.
+    """
+    if not candidates:
+        return None
+    prompt = _build_prompt_model_a(candidates, user_context)
+    try:
+        text = await asyncio.wait_for(_call_gemini_sdk(prompt), timeout=settings.gemini_timeout_s)
+    except TimeoutError:
+        _logger.warning("Gemini A 타임아웃 (%.1fs) → 폴백", settings.gemini_timeout_s)
+        return None
+    if not text:
+        return None
+    parsed = _parse_response_text(text)
+    if not parsed or "reasons" not in parsed or not isinstance(parsed["reasons"], list):
+        return None
+    reasons = [str(r).strip() for r in parsed["reasons"] if r]
+    if len(reasons) != len(candidates):
+        # 부분 일치 시에도 가능한 만큼 반환 (호출자가 padding).
+        return reasons
+    return reasons
+
+
 async def gemini_select_top3(
     candidates: list[dict],
     user_context: str,

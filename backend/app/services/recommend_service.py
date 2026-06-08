@@ -50,6 +50,7 @@ async def recommend_dual(
             preferences=preferences,
             user_allergies=user_allergies,
             repo=repo,
+            user_context=user_context,
         )
 
     async def _run_b() -> list[dict]:

@@ -334,7 +334,9 @@ class TestGeminiFallback:
         body = resp.json()
         assert len(body["model_b"]) >= 1, "폴백이라도 결과 1건 이상"
         for item in body["model_b"]:
-            assert item["reason"] == "", "폴백: reason 은 빈 문자열"
+            # critic F3 빈 카드 차단 — Gemini 폴백 시 결정론 한국어 문장 보장.
+            assert item["reason"], "폴백이라도 결정론 reason 보장"
+            assert "보유" in item["reason"] or "활용" in item["reason"]
             assert "final_score" in item
 
     async def test_gemini_timeout_returns_fallback(
@@ -359,4 +361,6 @@ class TestGeminiFallback:
         )
         assert resp.status_code == 200
         for item in resp.json()["model_b"]:
-            assert item["reason"] == ""
+            # critic F3 빈 카드 차단 — Gemini 폴백 시 결정론 한국어 문장 보장.
+            assert item["reason"]
+            assert "보유" in item["reason"] or "활용" in item["reason"]

@@ -38,6 +38,8 @@ class RecipeBrief(BaseModel):
 
 class ModelACandidate(RecipeBrief):
     score: float = Field(..., description="코사인 유사도 [0,1]")
+    have: list[str] = Field(default_factory=list, description="냉장고에서 매칭된 재료")
+    reason: str = Field(default="", description="자연어 추천 이유 (Top-3는 Gemini, 그 외 결정론 폴백)")
 
 
 class ModelBCandidate(RecipeBrief):

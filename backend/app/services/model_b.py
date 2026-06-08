@@ -77,6 +77,16 @@ async def recommend_missing_ingredients(
     t_pref = _THEME_MAP.get(str(preferences.get("food_type", "메인요리")), "main")
     spicy_tol_b = 1 if s_pref_int <= 2 else 2
 
+    # TF-IDF 임베딩 코사인 유사도 (Issue #72) — 사용자 보유 재료 + user_context 자연어를
+    # 1667 코퍼스 벡터 공간에서 매칭. 가중치 0.20 = 학계 표준 (Aggarwal §4.4 + Salton 1983).
+    # user_context 는 expand_context 로 코퍼스 도메인 키워드 확장 후 입력
+    # (Manning et al. 2008 §9 Query Expansion — OOV 어휘 흡수).
+    from app.services.context_expander import expand_context
+    from app.services.embedding_service import score_query
+    expanded_ctx_b = expand_context(user_context)
+    tfidf_query = f"{' '.join(fridge_norm_list)} {expanded_ctx_b}".strip()
+    tfidf_scores = score_query(tfidf_query)
+
     candidates: list[tuple[float, Recipe, list[str], list[str]]] = []
     for r in repo.list_all():
         # 2단계: 알레르기 + 조리시간 + 매운맛 + 난이도 + country + theme
@@ -103,15 +113,30 @@ async def recommend_missing_ingredients(
             continue
         if len(r.whole_ingredients) == 0:
             continue
-        # 5단계: 복합 점수
-        have_ratio = len(have) / len(r.whole_ingredients)
+        # 5단계: 복합 점수 + TF-IDF 가중합 결합 (Issue #72)
+        # have_ratio 분모 — 양념 포함 전체(whole_ingredients) 대신 양념 제외 주재료(main_ings)로
+        # 변경 (critic HIGH-2: 한식 양념 많은 레시피가 양식 대비 0.2~0.3 낮은 비율로 차별).
+        main_ings_count = len([ing for ing in r.whole_ingredients if ing not in BASIC_SEASONINGS])
+        have_ratio = len(have) / main_ings_count if main_ings_count > 0 else 0.0
         pref_sim = _cosine(pref_vec, _vec_from_recipe(r, preferences))
-        score = _composite_score(pref_sim, have_ratio, len(missing), max_missing)
-        candidates.append((score, r, have, missing))
+        base_score = _composite_score(pref_sim, have_ratio, len(missing), max_missing)
+        # TF-IDF 원본 score 보관 — 후보 모은 뒤 min-max 정규화 후 0.20 가중치 적용.
+        candidates.append((base_score, tfidf_scores.get(r.recipe_id, 0.0), r, have, missing))
+
+    # TF-IDF score 정규화 (code-reviewer HIGH-1: 가중치 0.20 이 실제 효과 발휘하도록).
+    tfidf_vals = [t for _, t, _, _, _ in candidates]
+    tmin, tmax = (min(tfidf_vals), max(tfidf_vals)) if tfidf_vals else (0.0, 0.0)
+    trange = tmax - tmin
+    def _t_norm(t: float) -> float:
+        return 0.0 if trange < 1e-9 else (t - tmin) / trange
+    candidates_scored = [
+        (0.80 * b + 0.20 * _t_norm(t), r, have, missing)
+        for b, t, r, have, missing in candidates
+    ]
 
     # 6-pre: 상위 10개 사전 선별
-    candidates.sort(key=lambda x: (-x[0], x[1].cook_min))
-    pre = candidates[:top_k_pre]
+    candidates_scored.sort(key=lambda x: (-x[0], x[1].cook_min))
+    pre = candidates_scored[:top_k_pre]
 
     # 6-Gemini: 3개 선별 + 한국어 이유
     pre_payload = [
@@ -166,5 +191,15 @@ async def recommend_missing_ingredients(
         payload = id_to_payload.get(rid)
         if not payload:
             continue
-        out.append({**payload, "reason": reasons_by_id.get(rid, "")})
+        # Gemini reason 누락 시 결정론적 한국어 폴백 — 빈 카드 노출 차단 (critic F3 CRITICAL).
+        # 보유/부족 재료 기반 자연 문장 생성. 사용자에게 항상 의미 있는 이유 표시 보장.
+        reason = reasons_by_id.get(rid, "")
+        if not reason:
+            have_str = ", ".join(payload.get("have", [])[:3]) or "기본 재료"
+            missing_str = ", ".join(payload.get("missing", [])[:3])
+            if missing_str:
+                reason = f"보유한 {have_str} 활용. {missing_str} 추가 시 완성됩니다."
+            else:
+                reason = f"보유한 {have_str} 만으로 만들 수 있습니다."
+        out.append({**payload, "reason": reason})
     return out

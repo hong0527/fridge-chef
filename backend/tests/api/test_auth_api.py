@@ -34,7 +34,7 @@ class TestSignup:
         assert body["nickname"] == "앨리스"
         assert body["allergies"] == ["계란"]
         assert "id" in body and isinstance(body["id"], int)
-        # NFR-SEC-002: 비밀번호 필드는 응답에 절대 노출 금지
+        # NFR-SEC-001: 비밀번호 필드는 응답에 절대 노출 금지
         assert "password" not in body
         assert "password_hash" not in body
 
@@ -77,7 +77,7 @@ class TestSignup:
     async def test_signup_stores_bcrypt_hash_not_plain(
         self, async_client, db_session
     ) -> None:
-        """# NFR-SEC-002 — bcrypt 해시 저장 확인 (raw 비교는 실패해야)."""
+        """# NFR-SEC-001 — bcrypt 해시 저장 확인 (raw 비교는 실패해야)."""
         from sqlalchemy import select
 
         from app.models.orm import User
@@ -93,7 +93,7 @@ class TestSignup:
         # 다른 세션에서 DB 조회
         user = await db_session.scalar(select(User).where(User.email == payload["email"]))
         assert user is not None
-        # raw 비교 실패해야 함 (NFR-SEC-002)
+        # raw 비교 실패해야 함 (NFR-SEC-001)
         assert user.password_hash != payload["password"]
         # bcrypt 해시 prefix 검증 ($2a/$2b/$2y)
         assert user.password_hash.startswith("$2"), "bcrypt 해시 prefix 누락"
@@ -134,7 +134,7 @@ class TestLogin:
         assert resp.status_code == 401
 
     async def test_jwt_contains_user_id_subject(self, async_client, test_user) -> None:
-        """# NFR-SEC-002 — JWT payload에 sub=user_id 포함."""
+        """FR-002 — JWT payload에 sub=user_id 포함."""
         import os
 
         secret = os.environ["JWT_SECRET"]
@@ -149,7 +149,7 @@ class TestLogin:
         assert "exp" in payload and "iat" in payload
 
     async def test_jwt_expired_token_rejected(self, async_client) -> None:
-        """# NFR-SEC-002 — 만료된 JWT → 401 (fridge 등 보호 라우터에서 검증)."""
+        """FR-002 — 만료된 JWT → 401 (fridge 등 보호 라우터에서 검증)."""
         import os
 
         secret = os.environ["JWT_SECRET"]
@@ -162,10 +162,6 @@ class TestLogin:
         )
         assert resp.status_code == 401
 
-    @pytest.mark.xfail(
-        reason="NFR-SEC-003 5회 실패 시 30분 잠금은 auth_service 미구현 (백오프 카운터 + Redis/DB 필요)",
-        strict=False,
-    )
     async def test_login_brute_force_lockout_after_5_failures(
         self, async_client, test_user
     ) -> None:

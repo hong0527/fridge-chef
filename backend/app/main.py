@@ -88,6 +88,9 @@ async def lifespan(_app: FastAPI):
             ]
             set_repository(RecipeRepository(domain_recipes))
             _logger.info("startup repo loaded from DB: %d recipes (인메모리 갱신)", len(domain_recipes))
+            # TF-IDF 임베딩 사전 학습 (Issue #72) — 시동 1회, 이후 요청마다 transform만.
+            from app.services.embedding_service import fit_corpus
+            fit_corpus(domain_recipes)
     except Exception:
         # 광역 예외이지만 traceback을 보존해 운영 사일런트 실패 방지 (code-reviewer HIGH 수정).
         # SEED 35건 fallback으로 부팅은 계속 진행.
