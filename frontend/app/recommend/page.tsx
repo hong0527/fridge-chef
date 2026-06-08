@@ -27,21 +27,21 @@ export default function RecommendPage() {
   // Browser setInterval 반환은 number — @types/node 의 NodeJS.Timeout 와 혼동 방지
   const progressIntervalRef = useRef<number | null>(null);
 
-  // 마운트 시: 저장된 결과 있으면 복원 (사용자 시연 피드백 — referrer 신호 신뢰 불가).
-  //   - sessionStorage에 'recommend_result' 있으면 결과 화면 복원
-  //   - 명시적 '다시 추천' 버튼 클릭 시에만 클리어 (handleSubmit + result 헤더 버튼)
-  //   - 다른 페이지(/fridge, /allergies)에서 진입해도 결과 유지 — 뒤로가기 영구 깨짐 차단
   useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem('recommend_result');
-      if (saved) {
-        const parsed = JSON.parse(saved) as RecommendResponse;
-        setResult(parsed);
-        setPhase('result');
-      }
-    } catch {
-      // 손상된 JSON → 다음 추천 호출 시 덮어쓰여짐. 일단 wizard 시작.
+    const fresh = sessionStorage.getItem('recommend_fresh');
+    if (fresh) {
+      sessionStorage.removeItem('recommend_fresh');
       sessionStorage.removeItem('recommend_result');
+    } else {
+      try {
+        const saved = sessionStorage.getItem('recommend_result');
+        if (saved) {
+          setResult(JSON.parse(saved) as RecommendResponse);
+          setPhase('result');
+        }
+      } catch {
+        sessionStorage.removeItem('recommend_result');
+      }
     }
     return () => {
       if (progressIntervalRef.current !== null) {
@@ -51,14 +51,11 @@ export default function RecommendPage() {
     };
   }, []);
 
-  // 결과 변경 시 sessionStorage 동기화 (탭 닫으면 자동 정리되는 휘발성 스토어).
   useEffect(() => {
     if (result) {
       try {
         sessionStorage.setItem('recommend_result', JSON.stringify(result));
-      } catch {
-        // quota / private 모드 무시
-      }
+      } catch { /* quota / private 모드 무시 */ }
     }
   }, [result]);
 
@@ -102,7 +99,7 @@ export default function RecommendPage() {
   return (
     <main className="min-h-screen bg-cream-100 dark:bg-clay-900">
       <header className="max-w-7xl mx-auto px-6 lg:px-12 py-6 flex items-center justify-between">
-        <BrandLockup size="md" />
+        <BrandLockup size="md" href="/fridge" />
         <Link
           href="/fridge"
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-clay-700 dark:text-cream-200 hover:text-gochu-500"
@@ -198,7 +195,7 @@ export default function RecommendPage() {
               음식 종류 · 선호 국가 · 알레르기 조건을 바꿔보세요.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Button variant="primary" onClick={() => { sessionStorage.removeItem('recommend_result'); setPhase('wizard'); }}>
+              <Button variant="primary" onClick={() => { setPhase('wizard'); }}>
                 조건 다시 설정
               </Button>
               <Link
@@ -223,7 +220,7 @@ export default function RecommendPage() {
               <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight">
                 오늘의 <span className="ink-underline">추천</span>
               </h1>
-              <Button variant="secondary" onClick={() => { sessionStorage.removeItem('recommend_result'); setPhase('wizard'); }}>
+              <Button variant="secondary" onClick={() => { setPhase('wizard'); }}>
                 조건 다시 설정
               </Button>
             </div>

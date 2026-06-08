@@ -130,6 +130,7 @@ export default function FridgePage() {
 
   const goRecommend = () => {
     if (ingredients.length === 0) { toast.show('먼저 재료를 1개 이상 추가해주세요.', 'warning'); return; }
+    sessionStorage.setItem('recommend_fresh', '1');
     router.push('/recommend');
   };
 
