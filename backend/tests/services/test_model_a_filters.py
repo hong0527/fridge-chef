@@ -33,10 +33,6 @@ _BASE_PREFS = {
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason="CRITICAL: contains_all이 양념(소금/식용유)까지 요구해 평범한 7개 재료 입력에 결과 ≤ 2건",
-    strict=False,
-)
 async def test_contains_all_returns_results_for_typical_fridge() -> None:
     """평범한 사용자 냉장고(주재료 7개)에 시드 35개에서 5건 이상 추천되어야 함."""
     repo = get_repository()
@@ -72,10 +68,6 @@ async def test_contains_all_minimum_case_passes() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason="CRITICAL NFR-EVAL-001: expand_allergies가 model_a에 import 안 됨 → '난류' 입력 시 r001 계란말이 노출",
-    strict=False,
-)
 async def test_allergy_category_expansion_blocks_egg_recipes() -> None:
     """사용자가 '난류' 카테고리로 알레르기 등록 → r001 계란말이(allergens=['계란']) 차단되어야 함."""
     repo = get_repository()
@@ -168,10 +160,6 @@ async def test_empty_allergies_does_not_block_anything() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason="HIGH: country/theme ordinal 매핑 + 코사인 5차원 평탄성 때문에 '한식' 선호인데 양식 레시피가 상위에 옴",
-    strict=False,
-)
 async def test_country_preference_ranks_korean_higher_than_western() -> None:
     """'한식' 선호 입력 시 한식 레시피가 양식 레시피보다 상위에 위치해야 함."""
     repo = get_repository()

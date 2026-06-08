@@ -36,10 +36,6 @@ _BASE_PREFS = {
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason="CRITICAL: contains_all + 시드 양념 비일관성으로 평범한 7개 입력에 결과 ≤ 2건",
-    strict=False,
-)
 async def test_scenario_a_korean_spicy_yields_results(mock_gemini_fail: Any) -> None:
     """한식 매운 음식 선호 + 평범한 한식 재료 7개 → model_a 3건 이상, model_b 1건 이상."""
     repo = get_repository()
@@ -64,10 +60,6 @@ async def test_scenario_a_korean_spicy_yields_results(mock_gemini_fail: Any) -> 
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason="CRITICAL NFR-EVAL-001: expand_allergies 미연결 → '우유' 카테고리가 '치즈' 함유 레시피 차단 못 함",
-    strict=False,
-)
 async def test_scenario_b_milk_allergy_blocks_cheese_recipes(
     mock_gemini_fail: Any,
 ) -> None:
@@ -130,11 +122,6 @@ async def test_scenario_c_beginner_easy_recipes_only(mock_gemini_fail: Any) -> N
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason="CRITICAL: country를 ordinal(0.2~1.0)로 인코딩해 코사인 거리에 넣음 → "
-    "'한식' 선호인데 양식이 상위에 옴. one-hot 또는 동치 매칭으로 교체 필요.",
-    strict=False,
-)
 async def test_scenario_d_country_preference_respected(mock_gemini_fail: Any) -> None:
     """'한식'·메인요리 선호에서 model_a 결과의 첫 후보가 한식이어야 함."""
     repo = get_repository()

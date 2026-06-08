@@ -108,7 +108,7 @@ async def test_gemini_hallucinated_ids_are_blocked_not_replaced_silently(
     """
     repo = get_repository()
 
-    async def _hallucinate(candidates: list[dict], user_context: str) -> dict[str, Any]:
+    async def _hallucinate(_candidates: list[dict], _user_context: str) -> dict[str, Any]:
         return {
             "selected": ["FAKE_001", "FAKE_002", "FAKE_003"],
             "reasons": ["가짜1", "가짜2", "가짜3"],
@@ -168,15 +168,10 @@ async def test_missing_max_filter_excludes_far_recipes(
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason="CRITICAL: recommend_service.py:53-59의 asyncio.gather + wait_for 조합 때문에 "
-    "Gemini가 8초 넘기면 model_a 결과까지 같이 [] 폴백됨. model_a는 빠르게 끝나도 손실.",
-    strict=False,
-)
 async def test_gemini_slow_does_not_kill_model_a(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Gemini 느려도 model_a 결과는 정상 반환되어야 함 (현재는 둘 다 폐기됨)."""
+    """# NFR-REL-001 — Gemini 느려도 model_a 결과는 정상 반환되어야 함."""
     repo = get_repository()
 
     async def _slow_gemini(candidates: list[dict], user_context: str) -> Any:
