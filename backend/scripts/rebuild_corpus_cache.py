@@ -37,8 +37,9 @@ def main() -> int:
         print(f"❌ CSV 없음: {CSV_PATH}")
         return 1
 
-    from app.core.synonym_map import normalize_list
     import import_real_recipes as imp
+
+    from app.core.synonym_map import normalize_list
 
     rows: list[dict] = []
     with CSV_PATH.open("r", encoding="cp949", errors="replace") as f:

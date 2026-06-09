@@ -31,7 +31,7 @@ os.environ.setdefault("JWT_SECRET", "test-secret-do-not-use-in-prod-padding-1234
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("GEMINI_API_KEY", "")
 
-from app.models.recipe_repository import RecipeRepository, get_repository, set_repository  # noqa: E402
+from app.models.recipe_repository import RecipeRepository, set_repository  # noqa: E402
 from app.services import embedding_service as emb_mod  # noqa: E402
 from app.services import gemini_client as gem_mod  # noqa: E402
 from app.services import semantic_embedding_service as sem_mod  # noqa: E402
@@ -68,8 +68,9 @@ def mrr(rec: list[str], rel: set[str]) -> float:
 
 # ──────────────────────────── 코퍼스 ────────────────────────────
 def load_corpus() -> list:
-    from app.models.recipe import Recipe
     import pickle
+
+    from app.models.recipe import Recipe
     if not CORPUS_CACHE.exists():
         print(f"❌ {CORPUS_CACHE} 없음 — 1667 코퍼스 캐시 필요")
         sys.exit(1)
@@ -108,7 +109,7 @@ def expand_expected(names: list[str], repo) -> set[str]:
 # ──────────────────────────── 통계 ────────────────────────────
 def paired_stats(a: list[float], b: list[float]) -> dict:
     """b - a 의 paired t-test + Cohen's d (paired). scipy 사용."""
-    pairs = [(x, y) for x, y in zip(a, b) if not (math.isnan(x) or math.isnan(y))]
+    pairs = [(x, y) for x, y in zip(a, b, strict=False) if not (math.isnan(x) or math.isnan(y))]
     n = len(pairs)
     if n < 2:
         return {"n": n, "mean_diff": float("nan"), "t": float("nan"), "p": float("nan"), "d": float("nan")}
@@ -147,8 +148,8 @@ async def run() -> int:
     print(f"의미 임베딩 준비: {sem_mod.stats()}")
 
     # 자연어 의미검색 후보 주입 + 가중치 (해결책 적용). EVAL_RETRIEVAL_K=0 으로 끄면 '재정렬 전용' 비교.
-    from app.services import model_a as ma_mod
     import app.core.config as cfg
+    from app.services import model_a as ma_mod
     retrieval_k = int(os.getenv("EVAL_RETRIEVAL_K", "20"))
     nl_weight = float(os.getenv("EVAL_NL_WEIGHT", "0.35"))
     ma_mod.set_nl_retrieval_k(retrieval_k)

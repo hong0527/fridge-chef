@@ -23,13 +23,22 @@ os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("GEMINI_API_KEY", "")
 
 from app.core.synonym_map import normalize_list  # noqa: E402
-from app.models.recipe_repository import RecipeRepository, get_repository, set_repository  # noqa: E402
+from app.models.recipe_repository import (  # noqa: E402
+    RecipeRepository,
+    get_repository,
+    set_repository,
+)
 from app.services import embedding_service as emb  # noqa: E402
 from app.services import gemini_client as gem  # noqa: E402
 from app.services import model_a as ma  # noqa: E402
 from app.services import semantic_embedding_service as sem  # noqa: E402
 from app.services.model_a import BASIC_SEASONINGS, recommend_cold_storage  # noqa: E402
-from scripts.evaluate_semantic_nl import load_corpus, ndcg_at_k, expand_expected, _mean  # noqa: E402
+from scripts.evaluate_semantic_nl import (  # noqa: E402
+    _mean,
+    expand_expected,
+    load_corpus,
+    ndcg_at_k,
+)
 
 RELABEL = _BD / "tests" / "fixtures" / "nl_relabel_set.json"
 K = 5

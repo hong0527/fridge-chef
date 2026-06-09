@@ -30,15 +30,25 @@ os.environ.setdefault("JWT_SECRET", "test-secret-do-not-use-in-prod-padding-1234
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("GEMINI_API_KEY", "")
 
-from app.models.recipe_repository import RecipeRepository, get_repository, set_repository  # noqa: E402
+from app.core.synonym_map import normalize_list  # noqa: E402
+from app.models.recipe_repository import (  # noqa: E402
+    RecipeRepository,
+    get_repository,
+    set_repository,
+)
 from app.services import embedding_service as emb  # noqa: E402
 from app.services import gemini_client as gem  # noqa: E402
 from app.services import model_a as ma  # noqa: E402
 from app.services import semantic_embedding_service as sem  # noqa: E402
 from app.services.model_a import recommend_cold_storage  # noqa: E402
-from app.core.synonym_map import normalize_list  # noqa: E402
 from scripts.evaluate_semantic_nl import (  # noqa: E402
-    load_corpus, recall_at_k, ndcg_at_k, mrr, expand_expected, paired_stats, _mean,
+    _mean,
+    expand_expected,
+    load_corpus,
+    mrr,
+    ndcg_at_k,
+    paired_stats,
+    recall_at_k,
 )
 
 RELABEL = _BD / "tests" / "fixtures" / "nl_relabel_set.json"
@@ -107,7 +117,8 @@ async def main() -> int:
         q["_rel"] = expand_expected(q["expected_relevant"], repo)
 
     # 워밍업 (모델 로드/캐시 — 첫 호출 지연 제외)
-    emb.set_backend("hybrid"); ma.set_nl_retrieval_k(RETRIEVAL_K)
+    emb.set_backend("hybrid")
+    ma.set_nl_retrieval_k(RETRIEVAL_K)
     await recommend_cold_storage(fridge_ingredients=["밥"], preferences=queries[0]["preferences"],
                                  user_allergies=[], repo=repo, user_context="테스트")
 
@@ -121,7 +132,8 @@ async def main() -> int:
 
     # ── A. 코퍼스 통계 ──
     from collections import Counter
-    cc = Counter(r.country for r in corpus); tc = Counter(r.theme for r in corpus)
+    cc = Counter(r.country for r in corpus)
+    tc = Counter(r.theme for r in corpus)
     p("## A. 코퍼스 통계")
     p(f"- country 분포: {dict(cc)}")
     p(f"- theme 분포: {dict(tc)}")
@@ -189,13 +201,15 @@ async def main() -> int:
         p95 = ts[min(len(ts) - 1, int(0.95 * len(ts)))]
         p(f"| {LABELS[b]} | {statistics.mean(ts):.1f} | {p95:.1f} | {max(ts):.1f} |")
     p()
-    p(f"→ NFR-PERF-003(≤10초=10000ms) 충족. 1667개 문서는 사전계산 캐시, 요청당 쿼리 1건만 인코딩.")
+    p("→ NFR-PERF-003(≤10초=10000ms) 충족. 1667개 문서는 사전계산 캐시, 요청당 쿼리 1건만 인코딩.")
     p()
 
     # ── E. 안전성 (알레르기 0%) ──
     p("## E. 안전성 — 알레르기 0% (NFR-EVAL-001)")
-    emb.set_backend("hybrid"); ma.set_nl_retrieval_k(RETRIEVAL_K)
-    total_leaks = 0; total_recs = 0
+    emb.set_backend("hybrid")
+    ma.set_nl_retrieval_k(RETRIEVAL_K)
+    total_leaks = 0
+    total_recs = 0
     p("| 알레르기 | 자연어 | 추천 수 | 누출 |")
     p("| --- | --- | ---: | ---: |")
     for case in ALLERGY_CASES:
@@ -205,9 +219,11 @@ async def main() -> int:
             user_allergies=case["allergy"], repo=repo, user_context=case["ctx"],
         )
         leaks = sum(1 for r in a if forbidden & set(repo.get(r["recipe_id"]).allergens or []))
-        total_leaks += leaks; total_recs += len(a)
+        total_leaks += leaks
+        total_recs += len(a)
         p(f"| {','.join(case['allergy'])} | {case['ctx']} | {len(a)} | {leaks} |")
-    emb.set_backend(None); ma.set_nl_retrieval_k(None)
+    emb.set_backend(None)
+    ma.set_nl_retrieval_k(None)
     p(f"\n→ 알레르기 의미검색 주입 포함 총 {total_recs}건 추천 중 누출 **{total_leaks}건** "
       f"({'PASS — 0% 충족' if total_leaks == 0 else 'FAIL'}).")
     p()

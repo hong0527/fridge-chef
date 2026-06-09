@@ -19,7 +19,11 @@ os.environ.setdefault("JWT_SECRET", "test-secret-do-not-use-in-prod-padding-1234
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("GEMINI_API_KEY", "")
 
-from app.models.recipe_repository import RecipeRepository, get_repository, set_repository  # noqa: E402
+from app.models.recipe_repository import (  # noqa: E402
+    RecipeRepository,
+    get_repository,
+    set_repository,
+)
 from app.services import embedding_service as emb  # noqa: E402
 from app.services import gemini_client as gem  # noqa: E402
 from app.services import model_a as ma  # noqa: E402

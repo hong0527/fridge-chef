@@ -22,7 +22,11 @@ if _ENV.exists():
 os.environ.setdefault("JWT_SECRET", "test-secret-do-not-use-in-prod-padding-1234567890")
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
-from app.models.recipe_repository import RecipeRepository, get_repository, set_repository  # noqa: E402
+from app.models.recipe_repository import (  # noqa: E402
+    RecipeRepository,
+    get_repository,
+    set_repository,
+)
 from app.services import embedding_service as emb  # noqa: E402
 from app.services import gemini_client as gem  # noqa: E402
 from app.services import model_a as ma  # noqa: E402
@@ -56,9 +60,11 @@ async def _rec(ctx, prefs):
 
 async def main() -> int:
     set_repository(RecipeRepository(load_corpus()))
-    emb._reset_for_tests(); emb.fit_corpus(get_repository().list_all())
+    emb._reset_for_tests()
+    emb.fit_corpus(get_repository().list_all())
     if not sem.ensure_ready():
-        print("❌ 의미 임베딩 미준비"); return 1
+        print("❌ 의미 임베딩 미준비")
+        return 1
     gem.gemini_reasons_for_model_a = _none
     import app.core.config as cfg
     object.__setattr__(cfg.settings, "nl_weight", 0.35)
@@ -76,7 +82,8 @@ async def main() -> int:
         print(f"  Gemini 의도파싱 → 「{intent['food_query']}」 (맵기추정={intent['spicy']}, src={intent['source']})")
         print(f"  이전(원문 임베딩)      : {' · '.join(before)}")
         print(f"  지금(의도파싱+임베딩)  : {' · '.join(after)}")
-    emb.set_backend(None); ma.set_nl_retrieval_k(None)
+    emb.set_backend(None)
+    ma.set_nl_retrieval_k(None)
     return 0
 
 
