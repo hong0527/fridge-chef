@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import pytest
 
+from app.core.config import settings as _settings
 from app.core.synonym_map import normalize_list
 from app.models.recipe import Recipe
 from app.models.recipe_repository import RecipeRepository
@@ -80,7 +81,10 @@ class TestDiffMatchRanking:
         assert s1 > s2, f"초보 일치 score {s1} ≤ 1단계 차이 score {s2}"
         # 0.13 * (1.0 - 0.5) = 0.065 차이 기대 (jitter ±0.001 허용)
         delta = s1 - s2
-        assert 0.05 < delta < 0.08, f"기대 차이 ≈ 0.065, 실제 {delta:.4f}"
+        # 기대 차이 = (1 - nl_weight) * 0.13 * (1.0 - 0.5) = (1 - nl_weight) * 0.065.
+        # nl_weight 설정에 따라 weighted-sum 기여가 (1 - nl_weight) 배로 스케일되므로 설정 기반 검증.
+        expected = (1.0 - _settings.nl_weight) * 0.065
+        assert abs(delta - expected) < 0.01, f"기대 차이 ≈ {expected:.4f}, 실제 {delta:.4f}"
 
     @pytest.mark.asyncio
     async def test_ma_new_002_high_diff_filtered_out(self, diff_bonus_repo) -> None:
@@ -116,7 +120,10 @@ class TestDiffMatchRanking:
         s1 = _score_for(out, "db001")
         s2 = _score_for(out, "db002")
         delta = s1 - s2
-        assert 0.05 < delta < 0.08, f"기대 차이 ≈ 0.065, 실제 {delta:.4f}"
+        # 기대 차이 = (1 - nl_weight) * 0.13 * (1.0 - 0.5) = (1 - nl_weight) * 0.065.
+        # nl_weight 설정에 따라 weighted-sum 기여가 (1 - nl_weight) 배로 스케일되므로 설정 기반 검증.
+        expected = (1.0 - _settings.nl_weight) * 0.065
+        assert abs(delta - expected) < 0.01, f"기대 차이 ≈ {expected:.4f}, 실제 {delta:.4f}"
 
 
 class TestDiffBonusRanking:

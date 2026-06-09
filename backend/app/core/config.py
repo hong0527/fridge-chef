@@ -28,14 +28,18 @@ class Settings:
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-small")
     # 자연어(user_context) TF-IDF/임베딩 점수의 최종 가중치. 나머지 (1 - nl_weight)는 선호 가중합.
     # 0.20 → 0.35 상향 검토 중 (자연어 신호가 실제 재랭킹에 반영되도록, ablation 으로 검증).
-    nl_weight: float = float(os.getenv("NL_WEIGHT", "0.20"))
+    nl_weight: float = float(os.getenv("NL_WEIGHT", "0.30"))
     # 자연어 의도파싱 — Gemini가 자유 자연어("오늘 짜증나")를 음식 묘사("맵고 얼큰한 볶음")로
     # 번역해 추천 검색어를 풍부화. 운영 추천 경로(recommend_service)에 통합. 실패/레이트리밋 시 원문 폴백.
     nl_intent_enabled: bool = os.getenv("NL_INTENT_ENABLED", "true").lower() == "true"
     # 자연어 의미검색 후보 생성(retrieval) 주입 개수. 0 이면 비활성(기존 재정렬 전용 동작 유지).
     # >0 이면 user_context 의미 유사 상위 K개를, 재료 overlap·theme 필터를 우회해 후보풀에 합류
     # (알레르기·국가·조리시간·맵기·난이도 안전/선호 필터는 유지). 의미 추천을 "재정렬→검색"으로 격상.
-    nl_retrieval_k: int = int(os.getenv("NL_RETRIEVAL_K", "0"))
+    nl_retrieval_k: int = int(os.getenv("NL_RETRIEVAL_K", "12"))
+    # NL 주입 후보의 makeable 하한 — 재료가 이만큼도 안 겹치면 '냉털'에 부적합이라 제외.
+    # 0.0 이면 게이트 없음. LLM-judge 실측상 retrieval 켜면 적절성 2.75→4.50 (Δ+1.75) 개선되나,
+    # 감사 지적대로 무제한 주입은 missing 과다 후보를 냉털에 섞으므로 약한 하한으로 계약 보존.
+    nl_retrieval_overlap_floor: float = float(os.getenv("NL_RETRIEVAL_OVERLAP_FLOOR", "0.3"))
     frontend_url: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
     smtp_host: str = os.getenv("SMTP_HOST", "localhost")
     smtp_port: int = int(os.getenv("SMTP_PORT", "1025"))

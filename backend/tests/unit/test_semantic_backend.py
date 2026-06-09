@@ -72,8 +72,9 @@ class TestNlRetrievalInjection:
     async def test_injects_low_overlap_recipe_by_nl_score(self, monkeypatch, _no_gemini):
         """theme 불일치 + 재료 overlap 낮아 정상 후보엔 안 들어올 레시피를,
         높은 NL 점수로 retrieval 주입해 결과에 등장시킨다."""
-        # target: theme=side(쿼리는 main), 재료 겹침 0 → 기존 필터면 탈락
-        target = _mk("T", "기념일스테이크", ["소고기", "버터"], country="kr", theme="side")
+        # target: theme=side(쿼리는 main), overlap 0.33(밥 1/3) → base 필터(0.6) 탈락하나
+        # NL 주입 makeable 게이트(0.3)는 통과 → NL 의미점수로 주입돼야 함.
+        target = _mk("T", "기념일스테이크", ["밥", "소고기", "버터"], country="kr", theme="side")
         filler = [_mk(f"F{i}", f"밥{i}", ["밥", "계란"], country="kr", theme="main") for i in range(3)]
         repo = RecipeRepository([target, *filler])
 

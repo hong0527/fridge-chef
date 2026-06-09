@@ -310,6 +310,10 @@ async def recommend_cold_storage(
             if r.country != c_pref:
                 continue  # 국가 선호 유지 (회귀 보호).
             overlap = _ingredient_overlap_ratio(fridge_norm, r.whole_ingredients)
+            # makeable 게이트 — 재료가 너무 안 겹치면 '냉털(지금 만들기)'에 부적합이라 주입 제외
+            # (감사 지적: 무제한 주입이 missing 과다 후보를 Model A에 섞는 계약위반 방지).
+            if overlap < settings.nl_retrieval_overlap_floor:
+                continue
             selected.append((r, overlap))
             seen_ids.add(r.recipe_id)
             added += 1
