@@ -48,6 +48,7 @@ async def recommend_dual(
     # 검색어를 풍부화한다. 그 결과를 기존 TF-IDF 매칭에 그대로 태우므로 e5 등 무거운 모델 불필요(운영 가능).
     # 빈 입력이면 호출 안 함. 실패/타임아웃/레이트리밋 시 원문으로 폴백(parse_food_intent 내부 + 여기 except).
     effective_context = user_context
+    effective_prefs = preferences
     if settings.nl_intent_enabled and user_context.strip():
         try:
             from app.services.gemini_intent import parse_food_intent
@@ -59,13 +60,20 @@ async def recommend_dual(
             if intent.get("source") == "gemini" and intent.get("food_query"):
                 # 원문 + 번역문 결합 — 원문 단어와 번역된 음식 단어 모두 TF-IDF 매칭에 활용.
                 effective_context = f"{user_context} {intent['food_query']}".strip()
+                # spicy 추정치 연결 — 사용자가 맵기를 명시하지 않은 경우(기본값 3)에만 보정.
+                # '오늘 짜증나'→매운(4~5) 의도가 맵기 필터·점수에 실제 반영되게.
+                # 사용자 명시 선호는 절대 덮어쓰지 않음(선호 우선 원칙).
+                sp = intent.get("spicy")
+                if sp and int(preferences.get("spicy", 3)) == 3:
+                    effective_prefs = {**preferences, "spicy": int(sp)}
         except Exception:  # noqa: BLE001 — 네트워크/타임아웃/파싱 실패 시 원문 사용 (안전).
             effective_context = user_context
+            effective_prefs = preferences
 
     async def _run_a() -> list[dict]:
         return await recommend_cold_storage(
             fridge_ingredients=fridge_ingredients,
-            preferences=preferences,
+            preferences=effective_prefs,
             user_allergies=user_allergies,
             repo=repo,
             user_context=effective_context,
@@ -74,7 +82,7 @@ async def recommend_dual(
     async def _run_b() -> list[dict]:
         return await recommend_missing_ingredients(
             fridge_ingredients=fridge_ingredients,
-            preferences=preferences,
+            preferences=effective_prefs,
             user_allergies=user_allergies,
             user_context=effective_context,
             repo=repo,
