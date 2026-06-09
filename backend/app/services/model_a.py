@@ -345,6 +345,8 @@ async def recommend_cold_storage(
         d["score"] = round(float(score), 4)
         main_ings = [ing for ing in r.whole_ingredients if ing not in BASIC_SEASONINGS]
         d["have"] = [ing for ing in main_ings if ing in fridge_norm]
+        # 부족 주재료 — 사용자에게 정직하게 노출. overlap≥0.6 통과 후보는 일부 재료가 없을 수 있음.
+        d["missing"] = [ing for ing in main_ings if ing not in fridge_norm]
         out.append(d)
 
     # Gemini 자연어 reason 생성 — Top-3 만 Gemini 호출 (비용 절감 + 응답 시간 단축).
@@ -363,6 +365,11 @@ async def recommend_cold_storage(
             d["reason"] = gemini_reasons[idx]
         else:
             # 결정론 폴백 — Gemini 실패·타임아웃 또는 4~10번 후보 (cost 절감).
+            # missing 유무로 분기 — 재료가 부족한데 '바로 만들 수 있다'고 거짓 안내하지 않음 (model_b 와 동일 정책).
             have_str = ", ".join(d["have"][:3]) or "냉장고 재료"
-            d["reason"] = f"보유한 {have_str} 만으로 바로 만들 수 있습니다."
+            missing_str = ", ".join(d["missing"][:2])
+            if missing_str:
+                d["reason"] = f"보유한 {have_str} 활용. {missing_str} 추가 시 완성됩니다."
+            else:
+                d["reason"] = f"보유한 {have_str} 만으로 바로 만들 수 있습니다."
     return out

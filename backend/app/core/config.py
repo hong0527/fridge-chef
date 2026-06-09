@@ -10,10 +10,12 @@ from dataclasses import dataclass
 class Settings:
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-    # Gemini 2.5 Flash 가 한국어 reason 3개 생성에 평균 5~12초 소요 — 8초 timeout 시연 중
-    # 빈번히 폴백(reason 빈 문자열) 발생. 20초로 상향해 안정성 확보.
-    gemini_timeout_s: float = float(os.getenv("GEMINI_TIMEOUT_S", "20.0"))
-    recommend_timeout_s: float = float(os.getenv("RECOMMEND_TIMEOUT_S", "10.0"))
+    # CRITICAL: gemini_timeout_s < recommend_timeout_s 여야 한다.
+    # recommend_dual 이 model_a/b 를 recommend_timeout_s 로 감싸는데, 그 내부 Gemini 호출이
+    # 더 오래 걸리면 model 전체가 잘려 '빈 추천'이 된다(작동키 사용 시 Gemini가 실제로 느려 재현).
+    # 따라서 Gemini(8s)가 먼저 만료→결정론 reason 폴백→추천은 정상 반환(12s 안)되도록 둔다.
+    gemini_timeout_s: float = float(os.getenv("GEMINI_TIMEOUT_S", "8.0"))
+    recommend_timeout_s: float = float(os.getenv("RECOMMEND_TIMEOUT_S", "12.0"))
     top_k_model_a: int = int(os.getenv("TOP_K_MODEL_A", "10"))
     top_k_model_b_pre: int = int(os.getenv("TOP_K_MODEL_B_PRE", "10"))
     top_k_model_b_final: int = int(os.getenv("TOP_K_MODEL_B_FINAL", "3"))
@@ -27,6 +29,9 @@ class Settings:
     # 자연어(user_context) TF-IDF/임베딩 점수의 최종 가중치. 나머지 (1 - nl_weight)는 선호 가중합.
     # 0.20 → 0.35 상향 검토 중 (자연어 신호가 실제 재랭킹에 반영되도록, ablation 으로 검증).
     nl_weight: float = float(os.getenv("NL_WEIGHT", "0.20"))
+    # 자연어 의도파싱 — Gemini가 자유 자연어("오늘 짜증나")를 음식 묘사("맵고 얼큰한 볶음")로
+    # 번역해 추천 검색어를 풍부화. 운영 추천 경로(recommend_service)에 통합. 실패/레이트리밋 시 원문 폴백.
+    nl_intent_enabled: bool = os.getenv("NL_INTENT_ENABLED", "true").lower() == "true"
     # 자연어 의미검색 후보 생성(retrieval) 주입 개수. 0 이면 비활성(기존 재정렬 전용 동작 유지).
     # >0 이면 user_context 의미 유사 상위 K개를, 재료 overlap·theme 필터를 우회해 후보풀에 합류
     # (알레르기·국가·조리시간·맵기·난이도 안전/선호 필터는 유지). 의미 추천을 "재정렬→검색"으로 격상.
