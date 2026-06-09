@@ -85,7 +85,7 @@ async def recommend_missing_ingredients(
     from app.services.embedding_service import score_query
     expanded_ctx_b = expand_context(user_context)
     tfidf_query = f"{' '.join(fridge_norm_list)} {expanded_ctx_b}".strip()
-    tfidf_scores = score_query(tfidf_query)
+    tfidf_scores = score_query(tfidf_query, nl_text=user_context)
 
     candidates: list[tuple[float, Recipe, list[str], list[str]]] = []
     for r in repo.list_all():
@@ -128,9 +128,12 @@ async def recommend_missing_ingredients(
     tmin, tmax = (min(tfidf_vals), max(tfidf_vals)) if tfidf_vals else (0.0, 0.0)
     trange = tmax - tmin
     def _t_norm(t: float) -> float:
-        return 0.0 if trange < 1e-9 else (t - tmin) / trange
+        # 분산 거의 없을 때 raw 보존 (min-max 신호소멸 버그 수정, model_a 와 동일 정책).
+        return t if trange < 1e-9 else (t - tmin) / trange
+    # 자연어 점수 가중치 — settings.nl_weight (기본 0.20, ablation 검증).
+    w_nl = settings.nl_weight
     candidates_scored = [
-        (0.80 * b + 0.20 * _t_norm(t), r, have, missing)
+        ((1.0 - w_nl) * b + w_nl * _t_norm(t), r, have, missing)
         for b, t, r, have, missing in candidates
     ]
 

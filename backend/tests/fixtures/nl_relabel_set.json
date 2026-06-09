@@ -1,0 +1,167 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "purpose": "자연어 추천 품질 측정용 평가셋. TF-IDF(단어매칭) vs 의미 임베딩(e5)의 패러프레이즈 매칭 능력을 ablation 으로 비교한다.",
+    "honesty_note": "expected_relevant 는 1차 시드(레시피 이름 부분문자열)다. 최종 보고서에는 MOOD_MAP/expand_context 를 보지 않은 평가자 2~3명이 독립 블라인드로 재라벨링하고 Cohen's κ 일치도를 함께 보고해야 순환논증을 피할 수 있다. docs/NL_RELABELING_PROTOCOL.md 참조.",
+    "category_legend": {
+      "base": "MOOD_MAP 에 직접 키가 있는 표현 (TF-IDF·의미 둘 다 유리)",
+      "paraphrase": "동일 의도지만 MOOD_MAP 에 키가 없는 다른 말투 — 의미 임베딩만 매칭 가능 (핵심 실험군)",
+      "situation": "상황/동반 맥락",
+      "taste": "맛 표현",
+      "health": "건강/식단"
+    },
+    "expected_relevant_format": "레시피 이름(부분문자열 허용). 평가 스크립트가 1667 코퍼스에서 해당 부분문자열을 포함한 모든 레시피 id 로 확장한다.",
+    "metrics": ["recall@5", "ndcg@5", "mrr"]
+  },
+  "queries": [
+    {"id": "Q01", "category": "base", "user_context": "비 오는 날 따뜻하게 먹을 국물 요리", "paraphrase_of": null,
+     "preferences": {"country": "한식", "food_type": "국물", "spicy": 3, "difficulty": "초보", "max_cook_min": 60, "diet": false},
+     "fridge_ingredients": ["김치", "돼지고기", "두부", "대파", "마늘", "양파", "고춧가루", "된장"],
+     "expected_relevant": ["김치찌개", "된장찌개", "순두부찌개", "부대찌개"]},
+
+    {"id": "Q02", "category": "paraphrase", "user_context": "장마철 추적추적 오는데 속 풀리게 뜨끈한 거", "paraphrase_of": "Q01",
+     "preferences": {"country": "한식", "food_type": "국물", "spicy": 3, "difficulty": "초보", "max_cook_min": 60, "diet": false},
+     "fridge_ingredients": ["김치", "돼지고기", "두부", "대파", "마늘", "양파", "고춧가루", "된장"],
+     "expected_relevant": ["김치찌개", "된장찌개", "순두부찌개", "부대찌개"]},
+
+    {"id": "Q03", "category": "paraphrase", "user_context": "쌀쌀하고 으슬으슬한데 몸 녹일 따뜻한 국", "paraphrase_of": "Q01",
+     "preferences": {"country": "한식", "food_type": "국물", "spicy": 2, "difficulty": "초보", "max_cook_min": 60, "diet": false},
+     "fridge_ingredients": ["소고기", "무", "대파", "마늘", "간장", "미역", "두부", "달걀"],
+     "expected_relevant": ["미역국", "쇠고기무국", "된장찌개"]},
+
+    {"id": "Q04", "category": "base", "user_context": "추운 겨울 매콤한 국물", "paraphrase_of": null,
+     "preferences": {"country": "한식", "food_type": "국물", "spicy": 4, "difficulty": "초보", "max_cook_min": 60, "diet": false},
+     "fridge_ingredients": ["김치", "돼지고기", "두부", "대파", "고춧가루", "양파", "마늘"],
+     "expected_relevant": ["김치찌개", "부대찌개", "순두부찌개"]},
+
+    {"id": "Q05", "category": "situation", "user_context": "친구와 술 한잔 안주", "paraphrase_of": null,
+     "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 2, "difficulty": "초보", "max_cook_min": 40, "diet": false},
+     "fridge_ingredients": ["계란", "대파", "양파", "당근", "감자", "밀가루", "부추", "오징어"],
+     "expected_relevant": ["계란말이", "감자전", "계란찜"]},
+
+    {"id": "Q06", "category": "paraphrase", "user_context": "맥주랑 곁들일 간단한 한 입거리", "paraphrase_of": "Q05",
+     "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 2, "difficulty": "초보", "max_cook_min": 40, "diet": false},
+     "fridge_ingredients": ["계란", "대파", "양파", "당근", "감자", "밀가루", "부추", "오징어"],
+     "expected_relevant": ["계란말이", "감자전", "계란찜"]},
+
+    {"id": "Q07", "category": "health", "user_context": "건강한 식단 다이어트", "paraphrase_of": null,
+     "preferences": {"country": "양식", "food_type": "반찬", "spicy": 1, "difficulty": "초보", "max_cook_min": 30, "diet": true},
+     "fridge_ingredients": ["상추", "양상추", "토마토", "오이", "양파", "닭고기", "올리브유", "치즈"],
+     "expected_relevant": ["샐러드", "케이준치킨샐러드", "토마토샐러드"]},
+
+    {"id": "Q08", "category": "paraphrase", "user_context": "살 안 찌게 가볍고 산뜻한 거 먹고 싶어", "paraphrase_of": "Q07",
+     "preferences": {"country": "양식", "food_type": "반찬", "spicy": 1, "difficulty": "초보", "max_cook_min": 30, "diet": true},
+     "fridge_ingredients": ["상추", "양상추", "토마토", "오이", "양파", "닭고기", "올리브유", "치즈"],
+     "expected_relevant": ["샐러드", "케이준치킨샐러드", "토마토샐러드"]},
+
+    {"id": "Q09", "category": "taste", "user_context": "매콤한 분식", "paraphrase_of": null,
+     "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 4, "difficulty": "초보", "max_cook_min": 30, "diet": false},
+     "fridge_ingredients": ["떡", "어묵", "대파", "고추장", "양파", "계란", "고춧가루"],
+     "expected_relevant": ["떡볶이", "치즈떡볶이", "간장떡볶이"]},
+
+    {"id": "Q10", "category": "paraphrase", "user_context": "학창시절 떡볶이 같은 얼큰달콤한 거", "paraphrase_of": "Q09",
+     "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 4, "difficulty": "초보", "max_cook_min": 30, "diet": false},
+     "fridge_ingredients": ["떡", "어묵", "대파", "고추장", "양파", "계란", "고춧가루"],
+     "expected_relevant": ["떡볶이", "치즈떡볶이", "간장떡볶이"]},
+
+    {"id": "Q11", "category": "situation", "user_context": "엄마가 해주시던 집밥", "paraphrase_of": null,
+     "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 1, "difficulty": "초보", "max_cook_min": 40, "diet": false},
+     "fridge_ingredients": ["소고기", "무", "대파", "간장", "마늘", "미역", "두부"],
+     "expected_relevant": ["미역국", "쇠고기무국"]},
+
+    {"id": "Q12", "category": "paraphrase", "user_context": "고향 생각나는 따뜻한 한 끼", "paraphrase_of": "Q11",
+     "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 1, "difficulty": "초보", "max_cook_min": 40, "diet": false},
+     "fridge_ingredients": ["소고기", "무", "대파", "간장", "마늘", "미역", "두부"],
+     "expected_relevant": ["미역국", "쇠고기무국"]},
+
+    {"id": "Q13", "category": "base", "user_context": "토마토 파스타", "paraphrase_of": null,
+     "preferences": {"country": "양식", "food_type": "메인요리", "spicy": 1, "difficulty": "중급", "max_cook_min": 30, "diet": false},
+     "fridge_ingredients": ["면", "토마토", "마늘", "올리브유", "양파", "베이컨", "치즈"],
+     "expected_relevant": ["토마토파스타", "뽀모도로"]},
+
+    {"id": "Q14", "category": "paraphrase", "user_context": "새콤한 토마토 소스 면 요리", "paraphrase_of": "Q13",
+     "preferences": {"country": "양식", "food_type": "메인요리", "spicy": 1, "difficulty": "중급", "max_cook_min": 30, "diet": false},
+     "fridge_ingredients": ["면", "토마토", "마늘", "올리브유", "양파", "베이컨", "치즈"],
+     "expected_relevant": ["토마토파스타", "뽀모도로"]},
+
+    {"id": "Q15", "category": "taste", "user_context": "크림 베이스 진한 파스타", "paraphrase_of": null,
+     "preferences": {"country": "양식", "food_type": "메인요리", "spicy": 1, "difficulty": "중급", "max_cook_min": 30, "diet": false},
+     "fridge_ingredients": ["면", "계란", "치즈", "베이컨", "올리브유", "우유", "양파"],
+     "expected_relevant": ["까르보나라"]},
+
+    {"id": "Q16", "category": "paraphrase", "user_context": "느끼하고 고소한 크림 면", "paraphrase_of": "Q15",
+     "preferences": {"country": "양식", "food_type": "메인요리", "spicy": 1, "difficulty": "중급", "max_cook_min": 30, "diet": false},
+     "fridge_ingredients": ["면", "계란", "치즈", "베이컨", "올리브유", "우유", "양파"],
+     "expected_relevant": ["까르보나라"]},
+
+    {"id": "Q17", "category": "base", "user_context": "고기 굽고 싶다 스테이크", "paraphrase_of": null,
+     "preferences": {"country": "양식", "food_type": "메인요리", "spicy": 1, "difficulty": "고급", "max_cook_min": 40, "diet": false},
+     "fridge_ingredients": ["소고기", "올리브유", "마늘", "버터", "양파", "감자", "후추"],
+     "expected_relevant": ["스테이크", "안심스테이크", "찹스테이크"]},
+
+    {"id": "Q18", "category": "paraphrase", "user_context": "기념일에 근사하게 구운 고기 요리", "paraphrase_of": "Q17",
+     "preferences": {"country": "양식", "food_type": "메인요리", "spicy": 1, "difficulty": "고급", "max_cook_min": 40, "diet": false},
+     "fridge_ingredients": ["소고기", "올리브유", "마늘", "버터", "양파", "감자", "후추"],
+     "expected_relevant": ["스테이크", "안심스테이크", "찹스테이크"]},
+
+    {"id": "Q19", "category": "base", "user_context": "따뜻한 일식 국물 우동", "paraphrase_of": null,
+     "preferences": {"country": "일식", "food_type": "국물", "spicy": 1, "difficulty": "중급", "max_cook_min": 30, "diet": false},
+     "fridge_ingredients": ["면", "간장", "대파", "계란", "어묵", "유부", "가츠오부시"],
+     "expected_relevant": ["우동"]},
+
+    {"id": "Q20", "category": "paraphrase", "user_context": "후루룩 먹는 따끈한 일본식 면", "paraphrase_of": "Q19",
+     "preferences": {"country": "일식", "food_type": "국물", "spicy": 1, "difficulty": "중급", "max_cook_min": 30, "diet": false},
+     "fridge_ingredients": ["면", "간장", "대파", "계란", "어묵", "유부", "가츠오부시"],
+     "expected_relevant": ["우동"]},
+
+    {"id": "Q21", "category": "situation", "user_context": "혼밥 빠르게 간단하게", "paraphrase_of": null,
+     "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 2, "difficulty": "초보", "max_cook_min": 15, "diet": false},
+     "fridge_ingredients": ["밥", "계란", "대파", "김치", "김", "참기름", "간장"],
+     "expected_relevant": ["볶음밥", "비빔밥", "계란덮밥", "오므라이스"]},
+
+    {"id": "Q22", "category": "paraphrase", "user_context": "귀찮은데 혼자 후딱 차려 먹을 거", "paraphrase_of": "Q21",
+     "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 2, "difficulty": "초보", "max_cook_min": 15, "diet": false},
+     "fridge_ingredients": ["밥", "계란", "대파", "김치", "김", "참기름", "간장"],
+     "expected_relevant": ["볶음밥", "비빔밥", "계란덮밥", "오므라이스"]},
+
+    {"id": "Q23", "category": "base", "user_context": "달콤한 디저트", "paraphrase_of": null,
+     "preferences": {"country": "한식", "food_type": "디저트", "spicy": 1, "difficulty": "초보", "max_cook_min": 30, "diet": false},
+     "fridge_ingredients": ["고구마", "설탕", "우유", "버터", "꿀"],
+     "expected_relevant": ["고구마맛탕", "맛탕"]},
+
+    {"id": "Q24", "category": "paraphrase", "user_context": "입가심으로 달달한 간식", "paraphrase_of": "Q23",
+     "preferences": {"country": "한식", "food_type": "디저트", "spicy": 1, "difficulty": "초보", "max_cook_min": 30, "diet": false},
+     "fridge_ingredients": ["고구마", "설탕", "우유", "버터", "꿀"],
+     "expected_relevant": ["고구마맛탕", "맛탕"]},
+
+    {"id": "Q25", "category": "taste", "user_context": "기름지고 든든한 중식", "paraphrase_of": null,
+     "preferences": {"country": "중식", "food_type": "메인요리", "spicy": 2, "difficulty": "중급", "max_cook_min": 40, "diet": false},
+     "fridge_ingredients": ["돼지고기", "양파", "당근", "식용유", "감자", "전분", "면"],
+     "expected_relevant": ["탕수육", "자장면"]},
+
+    {"id": "Q26", "category": "paraphrase", "user_context": "바삭하게 튀긴 새콤달콤 중국요리", "paraphrase_of": "Q25",
+     "preferences": {"country": "중식", "food_type": "메인요리", "spicy": 1, "difficulty": "고급", "max_cook_min": 50, "diet": false},
+     "fridge_ingredients": ["돼지고기", "당근", "양파", "식용유", "전분", "파인애플"],
+     "expected_relevant": ["탕수육", "파인애플탕수육"]},
+
+    {"id": "Q27", "category": "health", "user_context": "담백하고 속 편한 한식", "paraphrase_of": null,
+     "preferences": {"country": "한식", "food_type": "반찬", "spicy": 1, "difficulty": "초보", "max_cook_min": 20, "diet": false},
+     "fridge_ingredients": ["콩나물", "시금치", "두부", "마늘", "참기름", "소금", "대파"],
+     "expected_relevant": ["콩나물무침", "시금치나물", "나물"]},
+
+    {"id": "Q28", "category": "paraphrase", "user_context": "자극적이지 않고 슴슴한 채소 반찬", "paraphrase_of": "Q27",
+     "preferences": {"country": "한식", "food_type": "반찬", "spicy": 1, "difficulty": "초보", "max_cook_min": 20, "diet": false},
+     "fridge_ingredients": ["콩나물", "시금치", "두부", "마늘", "참기름", "소금", "대파"],
+     "expected_relevant": ["콩나물무침", "시금치나물", "나물"]},
+
+    {"id": "Q29", "category": "situation", "user_context": "야식으로 자극적인 거", "paraphrase_of": null,
+     "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 4, "difficulty": "초보", "max_cook_min": 20, "diet": false},
+     "fridge_ingredients": ["면", "김치", "대파", "계란", "고춧가루", "라면사리"],
+     "expected_relevant": ["라면", "김치", "볶음"]},
+
+    {"id": "Q30", "category": "paraphrase", "user_context": "밤늦게 출출해서 얼큰한 면 요리", "paraphrase_of": "Q29",
+     "preferences": {"country": "한식", "food_type": "메인요리", "spicy": 4, "difficulty": "초보", "max_cook_min": 20, "diet": false},
+     "fridge_ingredients": ["면", "김치", "대파", "계란", "고춧가루", "라면사리"],
+     "expected_relevant": ["라면", "김치", "볶음"]}
+  ]
+}

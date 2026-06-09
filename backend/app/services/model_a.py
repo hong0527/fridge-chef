@@ -172,6 +172,23 @@ def _weighted_match_score(prefs: dict, r: Recipe, max_cook: int, overlap: float)
 # Model B 는 missing >= 1 별도 영역이므로 분리 유지 (missing=0 vs missing>=1 자연 분리).
 _OVERLAP_THRESHOLD = 0.6
 
+# 자연어 의미검색 후보 주입 개수 런타임 오버라이드 (평가 ablation 용). None 이면 settings 사용.
+_NL_RETRIEVAL_K_OVERRIDE: int | None = None
+
+
+def set_nl_retrieval_k(k: int | None) -> None:
+    """평가용 — 자연어 retrieval 주입 개수를 런타임 강제. None 이면 설정값 복원."""
+    global _NL_RETRIEVAL_K_OVERRIDE
+    _NL_RETRIEVAL_K_OVERRIDE = k
+
+
+def _nl_retrieval_k() -> int:
+    return (
+        _NL_RETRIEVAL_K_OVERRIDE
+        if _NL_RETRIEVAL_K_OVERRIDE is not None
+        else settings.nl_retrieval_k
+    )
+
 
 async def recommend_cold_storage(
     fridge_ingredients: list[str],
@@ -260,20 +277,61 @@ async def recommend_cold_storage(
     from app.services.embedding_service import score_query
     expanded_ctx = expand_context(user_context)
     query_text = f"{' '.join(fridge_norm)} {expanded_ctx}".strip()
-    tfidf_scores = score_query(query_text)
+    # nl_text: 의미 임베딩 백엔드가 쓸 순수 자연어 (재료 토큰 배제). TF-IDF 는 query_text 사용.
+    tfidf_scores = score_query(query_text, nl_text=user_context)
+
+    # 3.5단계: 자연어 의미검색 후보 생성 주입 (NL retrieval) — Issue #72 후속.
+    # 진단(evaluate_semantic_nl.py): 자연어 정답의 다수가 재료 overlap·theme 필터에서
+    # 후보 진입 전 탈락 → 재정렬만으로 회복 불가. user_context 의미 유사 상위 K개를
+    # 안전/선호 필터(알레르기·국가·조리시간·맵기·난이도)만 적용해 후보풀에 합류시킨다.
+    # overlap·theme 은 우회(의미 의도가 재료/형태 제약보다 우선). 알레르기 0%·국가 선호는
+    # 유지 — '양식 선호 + 한식 자연어 → 양식만' 회귀(test_nl_recommendation) 보호.
+    nl_k = _nl_retrieval_k()
+    if nl_k > 0 and user_context.strip() and tfidf_scores:
+        ranked = sorted(
+            repo.list_all(),
+            key=lambda r: tfidf_scores.get(r.recipe_id, 0.0),
+            reverse=True,
+        )
+        added = 0
+        for r in ranked:
+            if added >= nl_k:
+                break
+            if r.recipe_id in seen_ids:
+                continue
+            if allergies and any(a in allergies for a in r.allergens):
+                continue  # NFR-EVAL-001 알레르기 0% — 절대 우회 금지.
+            if r.cook_min > max_cook:
+                continue
+            if abs(r.spicy - s_pref_int) > (1 if s_pref_int <= 2 else 2):
+                continue
+            if abs(r.difficulty_level - d_pref) > 1:
+                continue
+            if r.country != c_pref:
+                continue  # 국가 선호 유지 (회귀 보호).
+            overlap = _ingredient_overlap_ratio(fridge_norm, r.whole_ingredients)
+            selected.append((r, overlap))
+            seen_ids.add(r.recipe_id)
+            added += 1
+
     # TF-IDF 코사인은 짧은 쿼리에서 0.0~0.15 범위에 집중 — 가중합(0.3~0.95) 대비 스케일 불일치.
     # 후보 풀 내 min-max 정규화로 TF-IDF 신호가 0.20 가중치만큼 실제 효과 발휘 (code-reviewer HIGH-1).
     sel_tfidf = [tfidf_scores.get(r.recipe_id, 0.0) for r, _ in selected]
     tmin, tmax = (min(sel_tfidf), max(sel_tfidf)) if sel_tfidf else (0.0, 0.0)
     trange = tmax - tmin
     def _norm(rid: str) -> float:
+        raw = tfidf_scores.get(rid, 0.0)
+        # 분산이 거의 없으면(후보 동질·풀 크기 1) min-max 가 신호를 0으로 소멸시키던 버그 수정.
+        # raw 값을 그대로 사용 → 랭킹엔 영향 없으나 의미 임베딩의 절대 신호를 보존.
         if trange < 1e-9:
-            return 0.0
-        return (tfidf_scores.get(rid, 0.0) - tmin) / trange
+            return raw
+        return (raw - tmin) / trange
+    # 자연어 점수 가중치 — settings.nl_weight (기본 0.20, ablation 으로 0.35 검증).
+    w_nl = settings.nl_weight
     scored = [
         (
-            0.80 * _weighted_match_score(preferences, r, max_cook, o)
-            + 0.20 * _norm(r.recipe_id),
+            (1.0 - w_nl) * _weighted_match_score(preferences, r, max_cook, o)
+            + w_nl * _norm(r.recipe_id),
             r,
         )
         for r, o in selected
