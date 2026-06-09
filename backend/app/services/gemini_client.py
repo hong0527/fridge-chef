@@ -97,30 +97,45 @@ def _parse_response_text(text: str) -> dict[str, Any] | None:
 
 
 async def _call_gemini_sdk(prompt: str) -> str | None:
-    """동기 SDK를 스레드로 격리해 비동기화."""
-    try:
-        import google.generativeai as genai  # type: ignore
-    except ImportError:
-        _logger.warning("google-generativeai 미설치 → 폴백")
-        return None
+    """Gemini REST 호출 (stdlib urllib, 스레드 격리로 비동기화).
+
+    SDK(google-generativeai 0.8.x) 가 thinking_config 를 지원하지 않아 REST 로 호출한다.
+    gemini-2.5 의 thinking(추론) 모드를 thinkingBudget=0 으로 끄면 응답이 8s→1s 로 단축돼
+    recommend_timeout_s(12s) 안에 실제 Gemini 결과를 받는다(폴백 회피). responseMimeType=JSON
+    유지로 기존 _parse_response_text 호환. 실패/타임아웃 시 None → 호출측 결정론 폴백.
+    """
     if not settings.gemini_api_key:
         _logger.warning("GEMINI_API_KEY 미설정 → 폴백")
         return None
+    import json as _json
+    import urllib.request
+
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{settings.gemini_model}:generateContent?key={settings.gemini_api_key}"
+    )
+    body = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.0,
+            "responseMimeType": "application/json",
+            # thinking 끄기 — 2.5 모델 지연 주범. flash 는 0 지원. (pro 는 무시될 수 있음)
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
+    }
 
     def _sync_call() -> str | None:
         try:
-            genai.configure(api_key=settings.gemini_api_key)
-            model = genai.GenerativeModel(
-                settings.gemini_model,
-                generation_config={
-                    "temperature": 0.0,
-                    "response_mime_type": "application/json",
-                },
+            req = urllib.request.Request(
+                url,
+                data=_json.dumps(body).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
             )
-            resp = model.generate_content(prompt)
-            return getattr(resp, "text", None)
+            with urllib.request.urlopen(req, timeout=settings.gemini_timeout_s) as resp:
+                d = _json.loads(resp.read().decode("utf-8"))
+            return d["candidates"][0]["content"]["parts"][0]["text"]
         except Exception as exc:  # pragma: no cover — 네트워크 의존
-            _logger.warning("Gemini SDK 호출 실패: %s", exc)
+            _logger.warning("Gemini REST 호출 실패: %s", exc)
             return None
 
     return await asyncio.to_thread(_sync_call)
