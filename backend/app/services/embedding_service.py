@@ -35,6 +35,21 @@ _RECIPE_IDS: list[str] = []
 # 시동 시 1회 로드. 누락 시 빈 dict — _recipe_text 가 graceful fallback.
 _DESCRIPTIONS: dict[str, str] = {}
 
+# 백엔드 런타임 오버라이드 (평가 ablation 용). None 이면 settings.embedding_backend 사용.
+# evaluate_semantic_nl.py 가 set_backend("tfidf"|"semantic") 으로 동일 프로세스 내 전환.
+_BACKEND_OVERRIDE: str | None = None
+
+
+def set_backend(name: str | None) -> None:
+    """평가용 — 자연어 점수 백엔드를 런타임 강제. None 이면 설정값으로 복원."""
+    global _BACKEND_OVERRIDE
+    _BACKEND_OVERRIDE = name
+
+
+def _active_backend() -> str:
+    from app.core.config import settings
+    return _BACKEND_OVERRIDE or settings.embedding_backend
+
 
 def _load_descriptions() -> dict[str, str]:
     """recipe_descriptions.json (1667 항목) 로드.
@@ -93,23 +108,69 @@ def fit_corpus(recipes: list[Recipe]) -> None:
         "TF-IDF fit complete: %d docs, vocab=%d, descriptions=%d",
         len(recipes), len(_VECTORIZER.vocabulary_), len(_DESCRIPTIONS),
     )
+    # 의미 임베딩 백엔드 설정 시 사전계산 캐시 + 모델 준비 (실패해도 TF-IDF 폴백 유지).
+    if _active_backend() in ("semantic", "hybrid"):
+        from app.services import semantic_embedding_service as sem
+        if sem.ensure_ready():
+            _logger.info("의미 임베딩 백엔드 활성(%s): %s", _active_backend(), sem.stats())
+        else:
+            _logger.warning("의미 임베딩 준비 실패 → TF-IDF 폴백 유지")
 
 
-def score_query(query_text: str) -> dict[str, float]:
+def score_query(query_text: str, nl_text: str = "") -> dict[str, float]:
     """사용자 쿼리 텍스트 → recipe_id : 코사인 유사도 점수 dict.
 
     빈 vectorizer(시동 실패) 또는 빈 쿼리 시 빈 dict 반환 → 가중합에 0 기여 (안전 폴백).
     NaN 방어: 0-norm sparse row(데이터 결손 레시피) 발생 시 sklearn cosine 이 NaN 반환 →
     정렬 시 후순위 결정 불가 (code-reviewer CRITICAL-2). nan_to_num 으로 0.0 강제.
     """
+    # 의미 임베딩은 '자연어 의도' 매칭이 목적이므로, 냉장고 재료 토큰이 섞인 query_text 대신
+    # 순수 자연어 nl_text 를 우선 인코딩한다 (재료 매칭은 overlap·가중합이 이미 담당).
+    backend = _active_backend()
+    if backend == "semantic":
+        from app.services import semantic_embedding_service as sem
+        if sem.is_ready():
+            return sem.score_query(nl_text.strip() or query_text)
+        return _tfidf_score_query(query_text)  # 의미 미준비 → TF-IDF 폴백
+    if backend == "hybrid":
+        # 단어매칭(TF-IDF)과 의미매칭(e5)의 상호보완 — 쿼리에 음식 단어가 있으면 TF-IDF가,
+        # 어휘 겹침 없는 패러프레이즈는 e5가 잡는다. 각자 코퍼스 min-max 정규화 후 per-recipe max.
+        from app.services import semantic_embedding_service as sem
+        tf = _tfidf_score_query(query_text)
+        sm = sem.score_query(nl_text.strip() or query_text) if sem.is_ready() else {}
+        return _combine_scores(tf, sm)
+    return _tfidf_score_query(query_text)
+
+
+def _tfidf_score_query(query_text: str) -> dict[str, float]:
+    """순수 TF-IDF 코사인 — 단어 빈도 매칭. 빈 vectorizer/쿼리 시 빈 dict."""
     if _VECTORIZER is None or _MATRIX is None or not query_text.strip():
         return {}
     import numpy as np
     q = _VECTORIZER.transform([query_text])
     sims = cosine_similarity(q, _MATRIX).flatten()
     sims = np.nan_to_num(sims, nan=0.0, posinf=0.0, neginf=0.0)
-    # numpy float → Python float (JSON 직렬화·SQL 호환)
     return {rid: float(s) for rid, s in zip(_RECIPE_IDS, sims, strict=False)}
+
+
+def _combine_scores(tf: dict[str, float], sm: dict[str, float]) -> dict[str, float]:
+    """TF-IDF·의미 점수 결합 — 각 코퍼스 min-max 정규화 후 per-recipe max (둘 중 강한 신호 채택)."""
+    if not sm:
+        return tf
+    if not tf:
+        return sm
+
+    def _norm(d: dict[str, float]) -> dict[str, float]:
+        vs = list(d.values())
+        lo, hi = min(vs), max(vs)
+        rng = hi - lo
+        if rng < 1e-9:
+            return {k: 0.0 for k in d}
+        return {k: (v - lo) / rng for k, v in d.items()}
+
+    tfn, smn = _norm(tf), _norm(sm)
+    keys = set(tf) | set(sm)
+    return {k: max(tfn.get(k, 0.0), smn.get(k, 0.0)) for k in keys}
 
 
 def is_ready() -> bool:
