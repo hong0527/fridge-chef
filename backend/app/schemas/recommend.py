@@ -39,6 +39,7 @@ class RecipeBrief(BaseModel):
 class ModelACandidate(RecipeBrief):
     score: float = Field(..., description="코사인 유사도 [0,1]")
     have: list[str] = Field(default_factory=list, description="냉장고에서 매칭된 재료")
+    missing: list[str] = Field(default_factory=list, description="부족한 주재료 (overlap≥0.6 통과 후보의 정직한 부족분)")
     reason: str = Field(default="", description="자연어 추천 이유 (Top-3는 Gemini, 그 외 결정론 폴백)")
 
 
