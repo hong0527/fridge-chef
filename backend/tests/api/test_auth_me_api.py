@@ -87,6 +87,41 @@ class TestPatchMeAllergies:
 
 
 @pytest.mark.asyncio
+class TestUpdateMeRouter:
+    """PATCH /api/auth/me — AuthError 400 경로 (AA-008)."""
+
+    async def test_aa008_wrong_current_password_returns_400_with_detail(
+        self, auth_client: AsyncClient
+    ) -> None:
+        """AA-008: 현재 비밀번호 불일치 → 400 + detail 존재."""
+        resp = await auth_client.patch(
+            "/api/auth/me",
+            json={"current_password": "completely_wrong_pw", "new_password": "NewPass123!"},
+        )
+        assert resp.status_code == 400
+        assert "detail" in resp.json()
+
+
+@pytest.mark.asyncio
+class TestUpdateMyAllergiesReturn:
+    """PATCH /api/auth/me/allergies — allergies 필드 반환 검증 (AA-009)."""
+
+    async def test_aa009_update_allergies_response_contains_allergies_field(
+        self, auth_client: AsyncClient
+    ) -> None:
+        """AA-009: 유효 JWT + 알레르기 목록 갱신 → 200 + 응답에 allergies 필드 포함 (갱신값 일치)."""
+        new_allergies = ["땅콩", "우유", "밀"]
+        resp = await auth_client.patch(
+            "/api/auth/me/allergies",
+            json={"allergies": new_allergies},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "allergies" in body
+        assert sorted(body["allergies"]) == sorted(new_allergies)
+
+
+@pytest.mark.asyncio
 class TestLoginRateLimit:
     async def test_sixth_attempt_returns_423(self, async_client: AsyncClient, test_user_email: str):
         for _ in range(5):

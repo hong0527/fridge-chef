@@ -1,9 +1,9 @@
-"""인증 API 통합 테스트 — SRS FR-001~003, NFR-SEC-002·003.
+"""인증 API 통합 테스트 — SRS FR-001~003, NFR-SEC-001·003.
 
 - FR-001 회원가입 (이메일+비밀번호+닉네임)
 - FR-002 로그인 (JWT 발급)
 - FR-003 비밀번호 재설정 (현재 스키마 미구현 → xfail 자리표시자)
-- NFR-SEC-002: bcrypt 해시 저장, JWT HS256
+- NFR-SEC-001: bcrypt 해시 저장, 평문 저장 금지
 - NFR-SEC-003: 5회 연속 실패 시 30분 잠금 (현재 미구현 → xfail)
 """
 
@@ -13,6 +13,15 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def clear_rate_limit():
+    """테스트 간 rate_limit 상태 초기화 — 브루트포스 테스트 오염 방지."""
+    from app.core.rate_limit import _attempts
+    _attempts.clear()
+    yield
+    _attempts.clear()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -178,6 +187,83 @@ class TestLogin:
             json={"email": test_user["email"], "password": test_user["password"]},
         )
         assert resp.status_code in (423, 429), "잠금 응답 (Locked / Too Many Requests)"
+
+
+# ─────────────────────────────────────────────────────────────
+class TestSignupRouter:
+    """POST /api/auth/signup 라우터 — 반환 경로 + 예외 경로 (AA-001~002)."""
+
+    async def test_aa001_signup_returns_user_public_fields(self, async_client) -> None:
+        """AA-001: 정상 가입 → 201 + UserPublic 필드(id·email·nickname·allergies), password_hash 미노출."""
+        resp = await async_client.post("/api/auth/signup", json={
+            "email": "aa001@fridgechef.io",
+            "password": "Pass1234!",
+            "nickname": "AA001",
+            "allergies": ["새우"],
+        })
+        assert resp.status_code == 201
+        body = resp.json()
+        assert "id" in body and isinstance(body["id"], int)
+        assert body["email"] == "aa001@fridgechef.io"
+        assert body["nickname"] == "AA001"
+        assert body["allergies"] == ["새우"]
+        assert "password_hash" not in body
+        assert "password" not in body
+
+    async def test_aa002_signup_duplicate_email_returns_409_with_detail(
+        self, async_client, test_user
+    ) -> None:
+        """AA-002: 중복 이메일 가입 시도 → 409 + detail 필드 존재."""
+        resp = await async_client.post("/api/auth/signup", json={
+            "email": test_user["email"],
+            "password": "Another1!",
+            "nickname": "중복",
+        })
+        assert resp.status_code == 409
+        assert "detail" in resp.json()
+
+
+# ─────────────────────────────────────────────────────────────
+class TestLoginRouter:
+    """POST /api/auth/login 라우터 — 200/401/403 경로 (AA-003~005)."""
+
+    async def test_aa003_login_verified_user_returns_access_token(
+        self, async_client, test_user
+    ) -> None:
+        """AA-003: 이메일 인증된 사용자 + 올바른 비밀번호 → 200 + access_token 문자열."""
+        resp = await async_client.post("/api/auth/login", json={
+            "email": test_user["email"],
+            "password": test_user["password"],
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert isinstance(body.get("access_token"), str)
+        assert len(body["access_token"]) > 0
+
+    async def test_aa004_login_wrong_password_returns_401(
+        self, async_client, test_user
+    ) -> None:
+        """AA-004: 잘못된 비밀번호 → 401."""
+        resp = await async_client.post("/api/auth/login", json={
+            "email": test_user["email"],
+            "password": "WrongPass999!",
+        })
+        assert resp.status_code == 401
+
+    async def test_aa005_login_email_not_verified_returns_403(
+        self, async_client
+    ) -> None:
+        """AA-005: 이메일 미인증 사용자 로그인 → 403 (is_email_verified=False 기본값 유지)."""
+        await async_client.post("/api/auth/signup", json={
+            "email": "unverified@fridgechef.io",
+            "password": "Pass1234!",
+            "nickname": "미인증",
+        })
+        resp = await async_client.post("/api/auth/login", json={
+            "email": "unverified@fridgechef.io",
+            "password": "Pass1234!",
+        })
+        assert resp.status_code == 403
 
 
 # ─────────────────────────────────────────────────────────────
