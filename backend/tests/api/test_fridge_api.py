@@ -4,7 +4,7 @@
 - FR-009 재료 조회
 - FR-010 재료 삭제
 - SDD §3.2: 입력 즉시 SYNONYM_MAP 정규화 ("쪽파"→"대파")
-- NFR-SEC-002: 모든 엔드포인트 JWT 필수
+- 모든 엔드포인트 JWT 인증 필수 (SDD §NFR-SEC: API 접근 제어)
 """
 
 from __future__ import annotations
@@ -17,22 +17,22 @@ class TestFridgeAuth:
     """JWT 가드."""
 
     async def test_get_without_token_returns_401(self, async_client) -> None:
-        """# NFR-SEC-002 — JWT 미포함 → 401."""
+        """# JWT 인증 필수 — JWT 미포함 → 401."""
         resp = await async_client.get("/api/fridge")
         assert resp.status_code == 401
 
     async def test_post_without_token_returns_401(self, async_client) -> None:
-        """# NFR-SEC-002 — POST 토큰 미포함 → 401."""
+        """# JWT 인증 필수 — POST 토큰 미포함 → 401."""
         resp = await async_client.post("/api/fridge", json={"raw_name": "두부"})
         assert resp.status_code == 401
 
     async def test_delete_without_token_returns_401(self, async_client) -> None:
-        """# NFR-SEC-002 — DELETE 토큰 미포함 → 401."""
+        """# JWT 인증 필수 — DELETE 토큰 미포함 → 401."""
         resp = await async_client.delete("/api/fridge/1")
         assert resp.status_code == 401
 
     async def test_malformed_authorization_header_returns_401(self, async_client) -> None:
-        """# NFR-SEC-002 — Bearer prefix 누락 → 401."""
+        """# JWT 인증 필수 — Bearer prefix 누락 → 401."""
         resp = await async_client.get(
             "/api/fridge", headers={"Authorization": "InvalidToken"}
         )
@@ -165,6 +165,45 @@ class TestFridgeCRUD:
 
 
 # ─────────────────────────────────────────────────────────────
+class TestFridgeReturnPaths:
+    """list·create·delete 반환 구조 검증 (AC-005~007)."""
+
+    async def test_ac005_list_after_create_returns_item_fields(
+        self, async_client, test_jwt_token
+    ) -> None:
+        """AC-005: 재료 1개 등록 후 목록 조회 → 200, items[0]에 id·raw_name 존재, total==1."""
+        headers = {"Authorization": test_jwt_token["Authorization"]}
+        await async_client.post("/api/fridge", json={"raw_name": "양파"}, headers=headers)
+        resp = await async_client.get("/api/fridge", headers=headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 1
+        item = body["items"][0]
+        assert "id" in item
+        assert item["raw_name"] == "양파"
+
+    async def test_ac006_create_returns_id_and_raw_name(
+        self, async_client, test_jwt_token
+    ) -> None:
+        """AC-006: POST /api/fridge {"raw_name": "양파"} → 201, 응답에 id·raw_name 포함."""
+        headers = {"Authorization": test_jwt_token["Authorization"]}
+        resp = await async_client.post(
+            "/api/fridge", json={"raw_name": "양파"}, headers=headers
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert "id" in body and isinstance(body["id"], int)
+        assert body["raw_name"] == "양파"
+
+    async def test_ac007_delete_nonexistent_ingredient_returns_404(
+        self, async_client, test_jwt_token
+    ) -> None:
+        """AC-007: 존재하지 않는 ingredient_id 삭제 시도 → 404."""
+        headers = {"Authorization": test_jwt_token["Authorization"]}
+        resp = await async_client.delete("/api/fridge/99999", headers=headers)
+        assert resp.status_code == 404
+
+
 class TestFridgeEdgeCases:
     """엣지 케이스 — 중복·용량 제한."""
 

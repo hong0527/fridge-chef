@@ -4,7 +4,7 @@
 - DELETE /api/favorites/{recipe_id}  즐겨찾기 삭제
 - GET    /api/favorites/{recipe_id}  즐겨찾기 여부 확인
 - GET    /api/favorites              즐겨찾기 목록 조회
-- NFR-SEC-002: 모든 엔드포인트 JWT 필수
+- 모든 엔드포인트 JWT 인증 필수 (SDD §NFR-SEC: API 접근 제어)
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ async def _seed_recipe(db_session, recipe_id: str = _RECIPE_ID) -> RecipeRow:
 
 # ─────────────────────────────────────────────────────────────
 class TestFavoritesAuth:
-    """JWT 가드 — NFR-SEC-002."""
+    """JWT 가드 — API 접근 제어 (SDD §NFR-SEC)."""
 
     async def test_list_without_token_returns_401(self, async_client) -> None:
         resp = await async_client.get("/api/favorites")
@@ -136,6 +136,54 @@ class TestFavoritesCRUD:
 
 
 # ─────────────────────────────────────────────────────────────
+class TestFavoritesReturnPaths:
+    """비어 있지 않은 목록·add·remove 반환 구조 검증 (AC-001~004)."""
+
+    async def test_ac001_list_returns_favorite_item_fields(
+        self, async_client, test_jwt_token, db_session
+    ) -> None:
+        """AC-001: RecipeRow seeded + 즐겨찾기 추가 후 목록 조회 → items[0]에 recipe_id·name·cook_min·spicy 존재."""
+        await _seed_recipe(db_session, "ac001-recipe")
+        headers = {"Authorization": test_jwt_token["Authorization"]}
+        await async_client.post("/api/favorites/ac001-recipe", headers=headers)
+        resp = await async_client.get("/api/favorites", headers=headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 1
+        item = body["items"][0]
+        assert item["recipe_id"] == "ac001-recipe"
+        assert "name" in item
+        assert "cook_min" in item
+        assert "spicy" in item
+
+    async def test_ac002_check_favorite_true_after_add(
+        self, async_client, test_jwt_token
+    ) -> None:
+        """AC-002: 즐겨찾기 추가 상태 → GET /api/favorites/{recipe_id} 200 + is_favorite==true."""
+        headers = {"Authorization": test_jwt_token["Authorization"]}
+        await async_client.post("/api/favorites/ac002-recipe", headers=headers)
+        resp = await async_client.get("/api/favorites/ac002-recipe", headers=headers)
+        assert resp.status_code == 200
+        assert resp.json()["is_favorite"] is True
+
+    async def test_ac003_add_favorite_returns_message_field(
+        self, async_client, test_jwt_token
+    ) -> None:
+        """AC-003: POST /api/favorites/{recipe_id} 201 + 응답 body에 message 필드 존재."""
+        headers = {"Authorization": test_jwt_token["Authorization"]}
+        resp = await async_client.post("/api/favorites/ac003-recipe", headers=headers)
+        assert resp.status_code == 201
+        assert "message" in resp.json()
+
+    async def test_ac004_delete_not_added_recipe_returns_404(
+        self, async_client, test_jwt_token
+    ) -> None:
+        """AC-004: 추가하지 않은 recipe_id 삭제 시도 → 404."""
+        headers = {"Authorization": test_jwt_token["Authorization"]}
+        resp = await async_client.delete("/api/favorites/ac004-never-added", headers=headers)
+        assert resp.status_code == 404
+
+
 class TestFavoritesEdgeCases:
     """엣지 케이스 — 중복·사용자 격리."""
 
