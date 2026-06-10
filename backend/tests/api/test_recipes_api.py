@@ -39,6 +39,47 @@ async def seeded_recipe(db_session):  # type: ignore[no-untyped-def]
     return row
 
 
+class TestRecipesNotFound:
+    """GET /api/recipes/{recipe_id} — 404/200 경로 (AC-008~009)."""
+
+    async def test_ac008_get_nonexistent_recipe_returns_404(
+        self, async_client
+    ) -> None:
+        """AC-008: DB에 없는 recipe_id 조회 → 404."""
+        resp = await async_client.get("/api/recipes/nonexistent-id-ac008")
+        assert resp.status_code == 404
+
+    async def test_ac009_get_existing_recipe_returns_required_fields(
+        self, async_client, db_session
+    ) -> None:
+        """AC-009: DB에 존재하는 recipe_id 조회 → 200, recipe_id·name·steps·allergens 필드 포함."""
+        from app.models.orm import RecipeRow
+
+        row = RecipeRow(
+            recipe_id="ac009-seed",
+            name="AC009 테스트요리",
+            whole_ingredients=["재료1", "재료2"],
+            steps=["단계1", "단계2"],
+            cook_min=15,
+            spicy=2,
+            difficulty_level=1,
+            is_low_calorie=False,
+            country="kr",
+            theme="main",
+            allergens=["밀"],
+        )
+        db_session.add(row)
+        await db_session.commit()
+
+        resp = await async_client.get("/api/recipes/ac009-seed")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["recipe_id"] == "ac009-seed"
+        assert body["name"] == "AC009 테스트요리"
+        assert "steps" in body
+        assert "allergens" in body
+
+
 class TestRecipeDetail:
     """GET /api/recipes/{id} — UC-04."""
 
