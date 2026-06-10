@@ -92,6 +92,9 @@ async def recommend_dual(
         _safe_run("model_a", _run_a(), settings.recommend_timeout_s),
         _safe_run("model_b", _run_b(), settings.recommend_timeout_s),
     )
-    # dedup 제거 — Model A(missing==0) 와 Model B(missing 1~5) 가 정의상 자연 분리되어
-    # 같은 recipe_id 가 양쪽에 동시 등장 불가. SDD §3.2 정의 충실.
+    # dedup — Model A(재료 맞는 것) 가 overlap≥0.6 로 missing>0 후보도 포함하므로, 같은 레시피가
+    # Model B(부족재료 1~5)에도 등장할 수 있다. 사용자에게 같은 메뉴가 A·B 양쪽에 뜨는 혼란을 막기 위해
+    # A 에 노출된 recipe_id 는 B 에서 제외한다 (A 우선). NFR: A∩B = ∅ 보장.
+    a_ids = {x["recipe_id"] for x in model_a}
+    model_b = [x for x in model_b if x["recipe_id"] not in a_ids]
     return {"model_a": model_a, "model_b": model_b}

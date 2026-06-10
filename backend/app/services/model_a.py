@@ -342,16 +342,22 @@ async def recommend_cold_storage(
     ]
     scored.sort(key=lambda x: (-x[0], x[1].cook_min))
 
-    # have 재료 (사용자 보유 재료 ∩ 레시피 주재료) — 사용자에게 "왜" 매칭됐는지 명시.
+    # Model A = '재료 완비(missing==0)' 중 자연어 매칭 상위 — 지금 바로 만들 수 있는 요리.
+    # missing>0 후보는 Model B(부족재료 1~5) 영역이므로 제외 → A·B 가 missing 수로 자연 분리되어
+    # 같은 레시피가 양쪽에 동시 노출되는 중복 버그를 원천 차단. scored 전체에서 완비 후보를 top_k 까지 수집.
     out: list[dict] = []
-    for score, r in scored[:top_k]:
+    for score, r in scored:
+        main_ings = [ing for ing in r.whole_ingredients if ing not in BASIC_SEASONINGS]
+        missing = [ing for ing in main_ings if ing not in fridge_norm]
+        if missing:
+            continue  # 재료 부족 → Model B 로 (A 에서 제외)
         d = r.to_brief_dict()
         d["score"] = round(float(score), 4)
-        main_ings = [ing for ing in r.whole_ingredients if ing not in BASIC_SEASONINGS]
         d["have"] = [ing for ing in main_ings if ing in fridge_norm]
-        # 부족 주재료 — 사용자에게 정직하게 노출. overlap≥0.6 통과 후보는 일부 재료가 없을 수 있음.
-        d["missing"] = [ing for ing in main_ings if ing not in fridge_norm]
+        d["missing"] = []
         out.append(d)
+        if len(out) >= top_k:
+            break
 
     # Gemini 자연어 reason 생성 — Top-3 만 Gemini 호출 (비용 절감 + 응답 시간 단축).
     # 사용자 신뢰성 향상 (Model A 도 Model B 와 동일한 UX, "왜" 추천됐는지 명시).

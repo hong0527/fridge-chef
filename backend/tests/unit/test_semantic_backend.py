@@ -69,17 +69,17 @@ def _no_gemini(monkeypatch):
 
 class TestNlRetrievalInjection:
     @pytest.mark.asyncio
-    async def test_injects_low_overlap_recipe_by_nl_score(self, monkeypatch, _no_gemini):
-        """theme 불일치 + 재료 overlap 낮아 정상 후보엔 안 들어올 레시피를,
-        높은 NL 점수로 retrieval 주입해 결과에 등장시킨다."""
-        # target: theme=side(쿼리는 main), overlap 0.33(밥 1/3) → base 필터(0.6) 탈락하나
-        # NL 주입 makeable 게이트(0.3)는 통과 → NL 의미점수로 주입돼야 함.
-        target = _mk("T", "기념일스테이크", ["밥", "소고기", "버터"], country="kr", theme="side")
-        filler = [_mk(f"F{i}", f"밥{i}", ["밥", "계란"], country="kr", theme="main") for i in range(3)]
-        repo = RecipeRepository([target, *filler])
+    async def test_nl_injection_respects_makeable_only(self, monkeypatch, _no_gemini):
+        """strict-A: NL 주입이 NL 점수가 아무리 높아도 '재료 부족(missing>0)' 후보를
+        Model A(재료 완비만)에 노출하지 않는다. 완비 후보만 떠야 한다 (A·B 분리 보장)."""
+        # INC: 재료 부족(소고기·버터 없음) but NL 최고점 → A에 뜨면 안 됨(B 영역)
+        incomplete = _mk("INC", "기념일스테이크", ["밥", "소고기", "버터"], country="kr", theme="main")
+        # CMP: 재료 완비(밥·계란만) → A에 떠야 함
+        complete = _mk("CMP", "계란밥", ["밥", "계란"], country="kr", theme="main")
+        repo = RecipeRepository([incomplete, complete])
 
         def fake_score(query_text, nl_text=""):
-            return {"T": 0.95, "F0": 0.01, "F1": 0.01, "F2": 0.01}
+            return {"INC": 0.99, "CMP": 0.5}  # 부족한 INC에 최고 NL 점수
         monkeypatch.setattr(emb, "score_query", fake_score)
         ma.set_nl_retrieval_k(10)
         try:
@@ -91,7 +91,9 @@ class TestNlRetrievalInjection:
             )
         finally:
             ma.set_nl_retrieval_k(None)
-        assert "T" in {r["recipe_id"] for r in out}, "NL 의미 후보가 주입되지 않음"
+        ids = {r["recipe_id"] for r in out}
+        assert "INC" not in ids, "재료 부족 후보가 Model A(완비)에 노출됨 — A·B 분리 위반"
+        assert "CMP" in ids, "재료 완비 후보가 누락됨"
 
     @pytest.mark.asyncio
     async def test_injection_never_bypasses_allergy_or_country(self, monkeypatch, _no_gemini):

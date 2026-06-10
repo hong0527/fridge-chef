@@ -42,9 +42,13 @@ async def test_contains_all_returns_results_for_typical_fridge() -> None:
         user_allergies=[],
         repo=repo,
     )
-    assert len(out) >= 5, (
-        f"평범한 입력에 추천 {len(out)}건 — 시드 양념 비일관성 때문에 contains_all 통과율 낮음. "
-        f"실제 추천: {[r['recipe_id'] for r in out]}"
+    # strict-A: Model A = 재료 완비(missing==0)만 → 시드 35개에선 소수 통과(정상).
+    # (운영 1667 코퍼스에선 재료 많을수록 4~9개.) 비어있지 않음 + 전부 완비 검증.
+    assert len(out) >= 1, (
+        f"완비 가능 레시피 0건 — 추천: {[r['recipe_id'] for r in out]}"
+    )
+    assert all(not r.get("missing") for r in out), (
+        "Model A 는 재료 완비(missing==0)만 떠야 함 — missing>0 후보 노출됨"
     )
 
 
