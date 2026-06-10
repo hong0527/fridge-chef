@@ -108,6 +108,8 @@ async def _call_gemini_sdk(prompt: str) -> str | None:
         _logger.warning("GEMINI_API_KEY 미설정 → 폴백")
         return None
     import json as _json
+    import time
+    import urllib.error
     import urllib.request
 
     url = (
@@ -123,20 +125,34 @@ async def _call_gemini_sdk(prompt: str) -> str | None:
             "thinkingConfig": {"thinkingBudget": 0},
         },
     }
+    data = _json.dumps(body).encode("utf-8")
 
     def _sync_call() -> str | None:
-        try:
-            req = urllib.request.Request(
-                url,
-                data=_json.dumps(body).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-            )
-            with urllib.request.urlopen(req, timeout=settings.gemini_timeout_s) as resp:
-                d = _json.loads(resp.read().decode("utf-8"))
-            return d["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception as exc:  # pragma: no cover — 네트워크 의존
-            _logger.warning("Gemini REST 호출 실패: %s", exc)
-            return None
+        # 503(과부하)/429(레이트리밋)/500 일시 오류는 구글 쪽 transient — 지수 백오프로 재시도.
+        # 운영 로그 'HTTP Error 503: Service Unavailable' 대응. gemini_timeout_s 안에서 최대 3회.
+        last_err = "unknown"
+        for attempt in range(3):
+            try:
+                req = urllib.request.Request(
+                    url, data=data, headers={"Content-Type": "application/json"}
+                )
+                with urllib.request.urlopen(req, timeout=settings.gemini_timeout_s) as resp:
+                    d = _json.loads(resp.read().decode("utf-8"))
+                return d["candidates"][0]["content"]["parts"][0]["text"]
+            except urllib.error.HTTPError as e:
+                last_err = f"HTTP {e.code}"
+                if e.code in (429, 500, 503) and attempt < 2:
+                    time.sleep(0.7 * (attempt + 1))  # 0.7s → 1.4s
+                    continue
+                break
+            except Exception as exc:  # 네트워크/타임아웃 등 — 1회 재시도 후 폴백
+                last_err = str(exc)
+                if attempt < 2:
+                    time.sleep(0.7 * (attempt + 1))
+                    continue
+                break
+        _logger.warning("Gemini REST 호출 실패(재시도 소진): %s", last_err)
+        return None
 
     return await asyncio.to_thread(_sync_call)
 
