@@ -33,6 +33,9 @@ export default function FridgePage() {
   const [clearOpen, setClearOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const debounceRef = useRef<number | null>(null);
+  // 중복 추가 가드 — handleAdd가 빠르게 두 번 호출돼도(한글 IME 조합 + Enter 이중발화 등)
+  // 한 번만 실행되게. adding state 는 비동기라 stale closure 위험 → ref 로 즉시 차단.
+  const addingRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -72,11 +75,18 @@ export default function FridgePage() {
   const handleAdd = async (name?: string) => {
     const target = (name ?? input).trim();
     if (!target) return;
+    // 중복 추가 가드 — 한글 IME 조합 + Enter 이중발화 등으로 handleAdd가 빠르게 두 번
+    // 호출되면, ingredients state 가 아직 갱신 전이라 아래 dedup(82행)을 둘 다 통과해
+    // 같은 재료가 2번 들어간다. ref 로 즉시 차단(state 는 비동기라 stale).
+    if (addingRef.current) return;
+    addingRef.current = true;
     if (ingredients.length >= MAX_INGREDIENTS) {
+      addingRef.current = false;
       toast.show(`재료는 최대 ${MAX_INGREDIENTS}개까지 추가할 수 있어요.`, 'warning');
       return;
     }
     if (ingredients.some((i) => i.raw_name === target)) {
+      addingRef.current = false;
       toast.show('이미 추가된 재료예요.', 'info');
       return;
     }
@@ -91,6 +101,7 @@ export default function FridgePage() {
       toast.show(apiErrorMessage(err), 'error');
     } finally {
       setAdding(false);
+      addingRef.current = false;
     }
   };
 
@@ -119,6 +130,9 @@ export default function FridgePage() {
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // 한글 IME 조합 중에는 Enter 가 '조합 확정 + 제출'로 두 번 발화돼 재료가 2번 들어간다.
+    // 조합 중(isComposing/keyCode 229)이면 키 처리를 건너뛴다 (한국어 입력 중복 버그 방지).
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight((h) => Math.min(suggestions.length - 1, h + 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight((h) => Math.max(-1, h - 1)); }
     else if (e.key === 'Enter') {

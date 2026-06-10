@@ -80,6 +80,38 @@ class TestVerifyEmailEndpoint:
         assert resp.status_code == 400
 
 
+class TestVerifyEmailRouter:
+    """POST /api/auth/verify-email 라우터 — 400/200 경로 (AA-006~007)."""
+
+    async def test_aa006_invalid_token_returns_400(self, async_client) -> None:
+        """AA-006: 만료·위조 토큰 → 400."""
+        resp = await async_client.post(
+            "/api/auth/verify-email",
+            json={"token": "this-is-not-a-valid-token"},
+        )
+        assert resp.status_code == 400
+
+    async def test_aa007_valid_token_returns_200_and_verified(
+        self, async_client, db_session
+    ) -> None:
+        """AA-007: DB에 저장된 유효 토큰 → 200 + is_email_verified=True."""
+        await async_client.post("/api/auth/signup", json={
+            "email": "aa007@fridgechef.io",
+            "password": "Pass1234!",
+            "nickname": "AA007",
+        })
+        user = await db_session.scalar(
+            select(User).where(User.email == "aa007@fridgechef.io")
+        )
+        token = user.email_verification_token
+
+        resp = await async_client.post(
+            "/api/auth/verify-email", json={"token": token}
+        )
+        assert resp.status_code == 200
+        assert resp.json()["is_email_verified"] is True
+
+
 class TestUnauthenticatedLogin:
     """VE-005: 이메일 미인증 사용자 로그인 차단."""
 

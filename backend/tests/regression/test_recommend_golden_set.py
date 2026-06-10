@@ -47,11 +47,16 @@ async def test_scenario_a_korean_spicy_yields_results(mock_gemini_fail: Any) -> 
         user_context="매콤한 점심",
         repo=repo,
     )
-    assert len(result["model_a"]) >= 3, (
-        f"한식 7개 입력에 model_a {len(result['model_a'])}건. 시드 양념 결함. "
+    # strict-A: Model A = 재료 완비(missing==0)만 → 시드 코퍼스에선 소수(정상). 비어있지 않음만 검증.
+    assert len(result["model_a"]) >= 1, (
+        f"한식 입력에 model_a {len(result['model_a'])}건. "
         f"추천: {[r['recipe_id'] for r in result['model_a']]}"
     )
     assert len(result["model_b"]) >= 1, "model_b 빈 응답"
+    # A·B 중복 금지 — 같은 레시피가 양쪽에 동시 노출되면 안 됨 (완비 vs 부족 분리).
+    a_ids = {r["recipe_id"] for r in result["model_a"]}
+    b_ids = {r["recipe_id"] for r in result["model_b"]}
+    assert not (a_ids & b_ids), f"A∩B 중복: {a_ids & b_ids}"
 
 
 # ────────────────────────────────────────────────────────────────
