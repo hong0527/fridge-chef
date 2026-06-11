@@ -64,6 +64,7 @@ api.interceptors.response.use(
   (err: AxiosError) => {
     if (err.response?.status === 401) {
       setToken(null);
+      clearUserScopedCache();  // 토큰 만료로 자동 로그아웃 시에도 옛 사용자 캐시 제거
       if (typeof window !== 'undefined' && window.location.pathname !== '/auth') {
         window.location.href = '/auth';
       }
@@ -210,7 +211,19 @@ export async function signup(
   return data;
 }
 
+// 계정 전환 시 이전 사용자의 화면 캐시(추천 결과 등)가 새 사용자에게 노출되지 않도록 제거.
+// recommend 페이지는 sessionStorage('recommend_result')에 결과를 캐시하는데, 로그아웃/로그인
+// 시 이를 비우지 않으면 새 계정으로 추천 화면 진입 시 옛 계정 추천이 그대로 표시되는 버그가 발생.
+function clearUserScopedCache(): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(ALLERGIES_KEY);
+  window.sessionStorage.removeItem('recommend_result');
+  window.sessionStorage.removeItem('recommend_fresh');
+}
+
 export async function login(email: string, password: string): Promise<AuthResponse> {
+  // 로그인 직전 이전 사용자의 캐시 제거 — 새 계정에 옛 추천이 새어나오지 않게.
+  clearUserScopedCache();
   const { data } = await api.post<AuthResponse>('/auth/login', { email, password });
   setToken(data.access_token);
   return data;
@@ -218,9 +231,7 @@ export async function login(email: string, password: string): Promise<AuthRespon
 
 export async function logout(): Promise<void> {
   setToken(null);
-  if (typeof window !== 'undefined') {
-    window.localStorage.removeItem(ALLERGIES_KEY);
-  }
+  clearUserScopedCache();
 }
 
 export async function getFridge(): Promise<IngredientListResponse> {
