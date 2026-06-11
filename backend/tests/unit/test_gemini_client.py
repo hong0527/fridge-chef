@@ -305,7 +305,7 @@ class _FakeHTTPResponse:
     def __init__(self, payload: dict) -> None:
         self._body = json.dumps(payload).encode("utf-8")
 
-    def __enter__(self) -> "_FakeHTTPResponse":
+    def __enter__(self) -> _FakeHTTPResponse:
         return self
 
     def __exit__(self, *exc: object) -> bool:
