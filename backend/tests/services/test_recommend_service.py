@@ -1,4 +1,4 @@
-"""recommend_service NL intent 풍부화·폴백·예외 경로 단위 테스트 — RS-001~006.
+"""recommend_service NL intent 풍부화·폴백·예외 경로 단위 테스트 — RS-NL-001~006.
 
 recommend_dual 의 모델 A/B 호출과 parse_food_intent 를 monkeypatch 로 교체하여
 실제 TF-IDF 연산·DB 없이 분기 경로를 검증한다.
@@ -17,12 +17,12 @@ from app.services import recommend_service
 
 @pytest.mark.asyncio
 class TestRecommendDualNLIntent:
-    """recommend_dual NL intent 풍부화 분기 — RS-001~006."""
+    """recommend_dual NL intent 풍부화 분기 — RS-NL-001~006."""
 
-    async def test_rs001_nl_enrichment_appends_food_query_to_context(
+    async def test_rsnl001_nl_enrichment_appends_food_query_to_context(
         self, monkeypatch
     ) -> None:
-        """RS-001: Gemini source=="gemini" + food_query 반환 → model_a 호출 시 user_context에 번역 텍스트 포함."""
+        """RS-NL-001: Gemini source=="gemini" + food_query 반환 → model_a 호출 시 user_context에 번역 텍스트 포함."""
         captured: dict = {}
 
         async def _mock_intent(_: str) -> dict:
@@ -53,10 +53,10 @@ class TestRecommendDualNLIntent:
         assert "맵고 얼큰한 음식" in captured["ctx"]
         assert "오늘 짜증나" in captured["ctx"]
 
-    async def test_rs002_nl_enrichment_updates_spicy_when_default(
+    async def test_rsnl002_nl_enrichment_updates_spicy_when_default(
         self, monkeypatch
     ) -> None:
-        """RS-002: Gemini spicy=4, 기본 선호 {"spicy":3} → model_a 호출 시 preferences["spicy"]==4."""
+        """RS-NL-002: Gemini spicy=4, 기본 선호 {"spicy":3} → model_a 호출 시 preferences["spicy"]==4."""
         captured: dict = {}
 
         async def _mock_intent(_: str) -> dict:
@@ -86,10 +86,10 @@ class TestRecommendDualNLIntent:
         )
         assert captured["prefs"]["spicy"] == 4
 
-    async def test_rs003_nl_enrichment_preserves_explicit_spicy(
+    async def test_rsnl003_nl_enrichment_preserves_explicit_spicy(
         self, monkeypatch
     ) -> None:
-        """RS-003: Gemini spicy=5, 명시 선호 {"spicy":1} → model_a 호출 시 preferences["spicy"]==1 (사용자 명시값 보존)."""
+        """RS-NL-003: Gemini spicy=5, 명시 선호 {"spicy":1} → model_a 호출 시 preferences["spicy"]==1 (사용자 명시값 보존)."""
         captured: dict = {}
 
         async def _mock_intent(_: str) -> dict:
@@ -119,10 +119,10 @@ class TestRecommendDualNLIntent:
         )
         assert captured["prefs"]["spicy"] == 1
 
-    async def test_rs004_nl_fallback_source_keeps_original_context(
+    async def test_rsnl004_nl_fallback_source_keeps_original_context(
         self, monkeypatch
     ) -> None:
-        """RS-004: Gemini source=="fallback" → effective_context == user_context (원문 그대로)."""
+        """RS-NL-004: Gemini source=="fallback" → effective_context == user_context (원문 그대로)."""
         # NFR-REL-001 — Gemini 폴백 시 원문 컨텍스트 유지, 추천 파이프라인 중단 없음
         captured: dict = {}
 
@@ -153,10 +153,10 @@ class TestRecommendDualNLIntent:
         )
         assert captured["ctx"] == "짜증나"
 
-    async def test_rs005_parse_food_intent_exception_fallback(
+    async def test_rsnl005_parse_food_intent_exception_fallback(
         self, monkeypatch
     ) -> None:
-        """RS-005: parse_food_intent 가 Exception 발생 → 예외 묵살, effective_context == user_context."""
+        """RS-NL-005: parse_food_intent 가 Exception 발생 → 예외 묵살, effective_context == user_context."""
         # NFR-REL-001 — Gemini 예외 발생 시 폴백 자동 전환, 파이프라인 중단 없음
         captured: dict = {}
 
@@ -188,10 +188,10 @@ class TestRecommendDualNLIntent:
         assert captured["ctx"] == "짜증나"
         assert "model_a" in result
 
-    async def test_rs006_nl_intent_disabled_skips_parse(
+    async def test_rsnl006_nl_intent_disabled_skips_parse(
         self, monkeypatch
     ) -> None:
-        """RS-006: nl_intent_enabled=False → parse_food_intent 미호출, model_a·model_b 정상 실행."""
+        """RS-NL-006: nl_intent_enabled=False → parse_food_intent 미호출, model_a·model_b 정상 실행."""
         call_count = {"intent": 0, "a": 0, "b": 0}
 
         async def _should_not_call(_: str) -> dict:

@@ -4,11 +4,14 @@
 - _build_prompt        : 프롬프트 생성 함수 (GC-007~009)
 - gemini_select_top3   : 전체 흐름 결합 테스트 (GC-010~012)
 - 보완 테스트           : success path, TimeoutError, _call_gemini_sdk 직접 호출
+- _call_gemini_sdk._sync_call : 503/429/500 지수 백오프 재시도 (GC-RT-001~005)
 
 API 키·네트워크 불필요 — _call_gemini_sdk 는 monkeypatch 로 격리.
 """
 
 from __future__ import annotations
+
+import json
 
 import pytest
 
@@ -109,8 +112,8 @@ class TestBuildPrompt:
     def test_gc009_empty_candidates_has_no_candidate_lines(self) -> None:
         """GC-009 — 후보 목록 비어있음 → candidate 줄 포맷 없음."""
         prompt = _build_prompt([], "오늘 저녁")
-        # 후보 줄은 "- recipe_id=..." 형식 — 없어야 함
-        assert "- recipe_id=" not in prompt
+        # 후보 줄은 "[N] id=..." 형식 (GC-007 참고) — candidates 가 비면 생성되지 않아야 함
+        assert "[1] id=" not in prompt
 
 
 # ─────────────────────────────────────────────────────────────
@@ -293,3 +296,136 @@ class TestGeminiReasonsForModelA:
         # candidates 3개, reasons 1개 → partial 반환
         result = await gemini_reasons_for_model_a(_CANDIDATES_3, "저녁")
         assert result == ["이유 하나"]
+
+
+# ─────────────────────────────────────────────────────────────
+class _FakeHTTPResponse:
+    """urllib.request.urlopen() 의 `with ... as resp:` 컨텍스트 매니저 모킹."""
+
+    def __init__(self, payload: dict) -> None:
+        self._body = json.dumps(payload).encode("utf-8")
+
+    def __enter__(self) -> "_FakeHTTPResponse":
+        return self
+
+    def __exit__(self, *exc: object) -> bool:
+        return False
+
+    def read(self) -> bytes:
+        return self._body
+
+
+_OK_PAYLOAD = {"candidates": [{"content": {"parts": [{"text": "정상 응답"}]}}]}
+
+
+class TestCallGeminiSdkRetry:
+    """_call_gemini_sdk._sync_call — 503/429/500 지수 백오프 재시도 (GC-RT-001~005)."""
+
+    @pytest.fixture(autouse=True)
+    def _with_api_key(self, monkeypatch):
+        """gemini_api_key 설정(early-return 우회) + time.sleep no-op(백오프 지연 제거)."""
+        from dataclasses import replace
+
+        import app.services.gemini_client as gc_mod
+        from app.core import config as cfg
+
+        monkeypatch.setattr(gc_mod, "settings", replace(cfg.settings, gemini_api_key="test-key"))
+        monkeypatch.setattr("time.sleep", lambda *_: None)
+
+    @pytest.mark.asyncio
+    async def test_gc_rt_001_first_attempt_success_returns_text(self, monkeypatch) -> None:
+        """GC-RT-001 — 1회차 호출 성공 → 텍스트 즉시 반환 (재시도 없음)."""
+        import urllib.request
+
+        attempts = {"n": 0}
+
+        def _fake_urlopen(req, timeout=None):
+            attempts["n"] += 1
+            return _FakeHTTPResponse(_OK_PAYLOAD)
+
+        monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+        result = await _call_gemini_sdk("프롬프트")
+        assert result == "정상 응답"
+        assert attempts["n"] == 1
+
+    @pytest.mark.asyncio
+    async def test_gc_rt_002_503_then_success_retries_once(self, monkeypatch) -> None:
+        """GC-RT-002 — 1회차 503 → 재시도 → 2회차 성공 → 텍스트 반환."""
+        import urllib.error
+        import urllib.request
+
+        attempts = {"n": 0}
+
+        def _fake_urlopen(req, timeout=None):
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                raise urllib.error.HTTPError(req.full_url, 503, "Service Unavailable", {}, None)
+            return _FakeHTTPResponse(_OK_PAYLOAD)
+
+        monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+        result = await _call_gemini_sdk("프롬프트")
+        assert result == "정상 응답"
+        assert attempts["n"] == 2
+
+    @pytest.mark.asyncio
+    async def test_gc_rt_003_all_503_exhausts_retries_returns_none(
+        self, monkeypatch, caplog
+    ) -> None:
+        """GC-RT-003 — 3회 모두 503 → 재시도 소진 → None + 경고 로그."""
+        import logging
+        import urllib.error
+        import urllib.request
+
+        attempts = {"n": 0}
+
+        def _fake_urlopen(req, timeout=None):
+            attempts["n"] += 1
+            raise urllib.error.HTTPError(req.full_url, 503, "Service Unavailable", {}, None)
+
+        monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+        with caplog.at_level(logging.WARNING, logger="app.services.gemini_client"):
+            result = await _call_gemini_sdk("프롬프트")
+
+        assert result is None
+        assert attempts["n"] == 3
+        assert "재시도 소진" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_gc_rt_004_non_transient_http_error_breaks_immediately(
+        self, monkeypatch
+    ) -> None:
+        """GC-RT-004 — 404(비-transient) HTTPError → 재시도 없이 즉시 중단 → None."""
+        import urllib.error
+        import urllib.request
+
+        attempts = {"n": 0}
+
+        def _fake_urlopen(req, timeout=None):
+            attempts["n"] += 1
+            raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
+
+        monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+        result = await _call_gemini_sdk("프롬프트")
+        assert result is None
+        assert attempts["n"] == 1
+
+    @pytest.mark.asyncio
+    async def test_gc_rt_005_generic_exception_retries_then_none(self, monkeypatch) -> None:
+        """GC-RT-005 — urlopen 일반 Exception(타임아웃 등) → 재시도 후 소진 → None."""
+        import urllib.request
+
+        attempts = {"n": 0}
+
+        def _fake_urlopen(req, timeout=None):
+            attempts["n"] += 1
+            raise TimeoutError("timed out")
+
+        monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+        result = await _call_gemini_sdk("프롬프트")
+        assert result is None
+        assert attempts["n"] == 3

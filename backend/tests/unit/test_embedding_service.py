@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from app.models.recipe import Recipe
@@ -110,3 +112,9 @@ def test_reset_for_tests_clears_state() -> None:
 def test_score_query_before_fit_returns_empty() -> None:
     """fit_corpus 호출 전 score_query — 빈 dict (안전 폴백)."""
     assert es.score_query("간장 계란") == {}
+
+
+def test_u_es_08_load_descriptions_missing_file_returns_empty(monkeypatch) -> None:
+    """U-ES-08: recipe_descriptions.json 파일 부재 → _load_descriptions() == {} (graceful fallback)."""
+    monkeypatch.setattr(Path, "exists", lambda self: False)
+    assert es._load_descriptions() == {}

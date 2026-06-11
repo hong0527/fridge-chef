@@ -1,4 +1,4 @@
-"""모델 A 난이도 매칭 회귀 테스트 (MA-NEW-001~004).
+"""모델 A 난이도 매칭 회귀 테스트 (MA-001~004).
 
 - NFR-PERF-002: 모델 A 추천 결과 정확성 (난이도 매칭 회귀 방지)
 
@@ -60,7 +60,7 @@ def _score_for(results: list[dict], recipe_id: str) -> float:
 
 
 class TestDiffMatchRanking:
-    """MA-NEW-001~003: 가중합에서 난이도 차이가 score에 미치는 기여 검증.
+    """MA-001~003: 가중합에서 난이도 차이가 score에 미치는 기여 검증.
 
     PR #40 stratified 도입으로 같은 country+theme 풀이면 모든 후보가 동일 tier에
     포함되어 score 비교 가능. 절대 점수가 아닌 *차이*를 검증해 가중치 튜닝에도
@@ -68,8 +68,8 @@ class TestDiffMatchRanking:
     """
 
     @pytest.mark.asyncio
-    async def test_ma_new_001_exact_match_score_is_highest(self, diff_bonus_repo) -> None:
-        """MA-NEW-001 — 난이도 일치(db001)가 1단계 차이(db002)보다 점수 높음."""
+    async def test_ma001_exact_match_score_is_highest(self, diff_bonus_repo) -> None:
+        """MA-001 — 난이도 일치(db001)가 1단계 차이(db002)보다 점수 높음."""
         out = await recommend_cold_storage(
             fridge_ingredients=_FRIDGE,
             preferences=_PREFS,
@@ -87,8 +87,8 @@ class TestDiffMatchRanking:
         assert abs(delta - expected) < 0.01, f"기대 차이 ≈ {expected:.4f}, 실제 {delta:.4f}"
 
     @pytest.mark.asyncio
-    async def test_ma_new_002_high_diff_filtered_out(self, diff_bonus_repo) -> None:
-        """MA-NEW-002 — 2단계 차이(고급)는 difficulty hard filter로 차단되어야 함.
+    async def test_ma002_high_diff_filtered_out(self, diff_bonus_repo) -> None:
+        """MA-002 — 2단계 차이(고급)는 difficulty hard filter로 차단되어야 함.
 
         새 정책: |r.difficulty_level - d_pref| > 1 차단. 초보(1) 선호 사용자에게
         고급(3) 레시피 노출 침묵 위반 차단 (사용자 시연 피드백 반영).
@@ -105,8 +105,8 @@ class TestDiffMatchRanking:
         )
 
     @pytest.mark.asyncio
-    async def test_ma_new_003_diff_contribution_one_step(self, diff_bonus_repo) -> None:
-        """MA-NEW-003 — 일치(db001) vs 1단계 차이(db002) score 차이 ≈ 0.065.
+    async def test_ma003_diff_contribution_one_step(self, diff_bonus_repo) -> None:
+        """MA-003 — 일치(db001) vs 1단계 차이(db002) score 차이 ≈ 0.065.
 
         새 정책 후 2단계 차이는 차단되므로 1단계 차이로 회귀 검증. 가중합에서
         difficulty 가중치 0.13 × diff_match 0.5 = 0.065 차이 기대 (jitter ±0.001).
@@ -127,11 +127,11 @@ class TestDiffMatchRanking:
 
 
 class TestDiffBonusRanking:
-    """MA-NEW-004: diff_bonus가 실제 추천 순서에 반영되는지 검증."""
+    """MA-004: diff_bonus가 실제 추천 순서에 반영되는지 검증."""
 
     @pytest.mark.asyncio
-    async def test_ma_new_004_difficulty_match_ranks_first(self, diff_bonus_repo) -> None:
-        """MA-NEW-004 — 사용자 난이도 일치 레시피가 1위 + 고급은 hard filter 차단.
+    async def test_ma004_difficulty_match_ranks_first(self, diff_bonus_repo) -> None:
+        """MA-004 — 사용자 난이도 일치 레시피가 1위 + 고급은 hard filter 차단.
 
         새 정책: 초보(1) 선호 시 db003(고급)은 차단, db001(일치) 1위, db002(1단계) 2위.
         """
