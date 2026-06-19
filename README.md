@@ -1,31 +1,42 @@
 # fridge-chef
 
-> 냉장고 재료 기반 AI 레시피 추천 웹앱 — 이중 추천 모델(냉털/부족재료) + Gemini 2.5 Flash 자연어 설명
+[![Version](https://img.shields.io/github/v/release/hong0527/fridge-chef?label=version)](https://github.com/hong0527/fridge-chef/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+> 냉장고 재료 기반 AI 레시피 추천 웹앱
 
 소프트웨어공학팀 프로젝트. 사용자가 냉장고에 있는 재료를 입력하면 두 가지 추천을 동시에 제공합니다.
-- **모델 A — 냉털 추천** : 현재 재료만으로 즉시 만들 수 있는 레시피 (코사인 유사도, 상위 10건)
+
+- **모델 A — 냉털 추천** : 현재 재료만으로 즉시 만들 수 있는 레시피 (TF-IDF + 코사인 유사도, 상위 10건)
 - **모델 B — 부족 재료 추천** : "이 재료 N개만 더 사면" 만들 수 있는 레시피 (복합 점수 → Gemini 자연어 이유, 상위 3건)
 - **Gemini 2.5 Flash** : 추천 이유를 한국어 1–2문장으로 친근하게 설명
+- **즐겨찾기** : 마음에 드는 레시피 저장 및 관리
+- **이메일 인증** : Gmail SMTP 기반 회원가입 인증
 
-자세한 요구사항은 `docs/SRS_v1.10_1차완성본.pdf`, 설계는 `docs/SDD_v1.0_공유용.pdf`.
+자세한 요구사항은 `docs/SRS_v2.0_최신버전.docx`, 설계는 `docs/SDD_v1.0_공유용.pdf`.
 
-## 아키텍처 (SDD §1.3 4-Layer)
+## 아키텍처
 
 ```
-┌──────────────────────────────┐
-│ Frontend  Next.js 14 + Tailwind (5 화면)
-└──────────────┬───────────────┘
-               │ HTTPS / JSON
-┌──────────────▼───────────────┐
-│ Presentation  FastAPI 라우터 (/api/*)
-├──────────────────────────────┤
-│ Service       AuthService · EmailService · FridgeService · RecommendService
-│               + Model A · Model B · GeminiClient
-├──────────────────────────────┤
-│ Data          SQLAlchemy ORM (User · FridgeIngredient · Recipe · Rating)
-└──────────────┬───────────────┘
-               │
-       Postgres 15 ──── Redis 7 (캐시·세션) ──── Mailpit (로컬 메일)
+┌──────────────────────────────────────────────────────────────┐
+│ Frontend  Next.js 14 + Tailwind (7 화면)                      │
+│  로그인 · 회원가입 · 냉장고 · 추천결과 · 레시피상세 · 즐겨찾기 · 프로필/알레르기 │
+└──────────────────────┬───────────────────────────────────────┘
+                       │ HTTPS / JSON
+┌──────────────────────▼───────────────────────────────────────┐
+│ Presentation  FastAPI 라우터                                   │
+│  /api/auth · /api/fridge · /api/recommend · /api/recipes      │
+│  /api/favorites · /api/ingredients                            │
+├──────────────────────────────────────────────────────────────┤
+│ Service                                                       │
+│  AuthService · EmailService · FridgeService                   │
+│  FavoritesService · RecommendService                          │
+│  Model A · Model B · GeminiClient                            │
+├──────────────────────────────────────────────────────────────┤
+│ Data  SQLAlchemy ORM (User · FridgeIngredient · Recipe · Favorite) │
+└──────────────────────┬───────────────────────────────────────┘
+                       │
+         Postgres 15 ──── Redis 7 (캐시·세션) ──── Gmail SMTP (운영 메일)
 ```
 
 ## 빠른 시작
@@ -60,8 +71,7 @@ cp .env.prod.example .env
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-> 운영 환경에서는 `docker-compose.override.yml` 이 적용되지 않으므로 Mailpit이 실행되지 않습니다.
-> 실제 SMTP 서비스(SendGrid, AWS SES 등) 설정이 필요합니다.
+> 운영 환경에서는 Gmail SMTP가 사용됩니다. `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD` 설정 필요.
 
 ### 3-2. 대규모 레시피 데이터셋 적재 (1667건 + 이미지 1667장)
 기본 부팅 시 DB에는 SEED 35건만 들어있습니다.
@@ -126,8 +136,8 @@ npx tsc --noEmit
 fridge-chef/
 ├── backend/                 # FastAPI 백엔드
 │   ├── app/
-│   │   ├── api/             # 라우터 (auth · fridge · recommend · recipes)
-│   │   ├── services/        # 비즈니스 로직 (auth_service · email_service · fridge_service · recommend_service · model_a · model_b · gemini_client)
+│   │   ├── api/             # 라우터 (auth · fridge · recommend · recipes · favorites · ingredients)
+│   │   ├── services/        # 비즈니스 로직 (auth · email · fridge · favorites · recommend · model_a · model_b · gemini_client)
 │   │   ├── models/          # SQLAlchemy ORM + Recipe 도메인 + RecipeRepository
 │   │   ├── schemas/         # Pydantic 요청·응답 DTO
 │   │   └── core/            # config · db · security · synonym_map · auth
@@ -136,14 +146,17 @@ fridge-chef/
 │   ├── pyproject.toml
 │   └── Dockerfile
 ├── frontend/                # Next.js 14 (App Router) + Tailwind
-│   ├── app/                 # 라우트 (layout · page · ...)
+│   ├── app/
+│   │   ├── (main)/          # 인증 후 화면 (fridge · recommend · favorites · profile · allergies)
+│   │   ├── auth/            # 로그인 · 회원가입 · 이메일 인증
+│   │   └── recipe/          # 레시피 상세
 │   ├── components/          # UI 컴포넌트
 │   ├── lib/                 # API 클라이언트
 │   └── Dockerfile
 ├── db/
 │   ├── migrations/          # 001_init.sql (psql 일회 적용)
 │   └── seeds/               # synonym_map.json · sample_recipes.json
-├── docs/                    # SRS · SDD
+├── docs/                    # SRS · SDD · 유스케이스 다이어그램
 ├── .github/
 │   ├── workflows/ci.yml     # pytest + ruff + tsc
 │   └── PULL_REQUEST_TEMPLATE.md
@@ -164,12 +177,12 @@ fridge-chef/
 - **NFR-OPS-001** /health 헬스체크 + 컨테이너 배포
 
 ## 팀원
-| 역할 | 이름 | 담당 |
-|---|---|---|
-| PM / Backend | (작성자) | RecommendService · Model A·B · 인프라 |
-| Frontend | (TBD) | 5 화면 (로그인·냉장고·추천·상세·평점) |
-| Data | (TBD) | SYNONYM_MAP 확장 100쌍 · 레시피 시드 30+건 |
-| QA | (TBD) | 골든셋 회귀 · 알레르기 누출 테스트 |
+| GitHub | 담당 |
+|---|---|
+| [@hong0527](https://github.com/hong0527) | PM · Backend: RecommendService · Model A·B · ML · 인프라 · 배포 |
+| [@ROKGYEONG-HONG](https://github.com/ROKGYEONG-HONG) | Frontend · QA: 프로필/알레르기 페이지 · 테스트 커버리지 |
+| [@gitjaewon](https://github.com/gitjaewon) | Backend · Frontend: 이메일 인증 · 즐겨찾기 · 레시피 상세 |
+| [@imdohun](https://github.com/imdohun) | Frontend: 랜딩 페이지 UI |
 
 > 본 프로젝트는 학습 목적이며, 다수의 AI 도구(Claude Code, ChatGPT, Gemini)를 코딩 보조로 활용합니다.
 > 모든 PR 의 `AI Usage` 섹션에 사용 내역을 명시합니다 (`.github/PULL_REQUEST_TEMPLATE.md` 참고).
